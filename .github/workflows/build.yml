@@ -4,6 +4,10 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]   # 打 tag 时自动发布 Release
+
+permissions:
+  contents: write    # 发布 Release 需要
 
 jobs:
   build-windows:
@@ -43,3 +47,11 @@ jobs:
         with:
           name: KCC-zh_CN-windows
           path: kcc/dist/KCC-v11.0.1-zh_CN.exe
+
+      - name: 发布 Release（仅 tag 触发时）
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: KCC 汉化版 ${{ github.ref_name }}
+          generate_release_notes: true
+          files: kcc/dist/KCC-v11.0.1-zh_CN.exe
