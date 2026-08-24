@@ -120,6 +120,7 @@
    "Only resize images and preserve original file structure.\n": "仅调整图片尺寸并保留原始文件结构。\n",
    "Ignores most options besides JPEG quality, color mode, output folder.": "除 JPEG 质量、彩色模式、输出目录外，其余大多数选项都会被忽略。",
    "Don't quantize PNG images to 16 colors (4 bit)\n": "不把 PNG 图片量化到 16 色（4 位）\n",
+   "Keep ComicInfo.xml": "保留 ComicInfo.xml",
    "This will double file size but preserve all 256 colors (8 bit).\n": "这会使文件体积翻倍，但能保留全部 256 色（8 位）。\n",
    "Eink only has 16 shades of gray so you probably don't want this.": "墨水屏只有 16 级灰度，所以一般不需要启用此选项。",
    "Render vector PDFs to device width instead of height.\n": "将矢量 PDF 按设备宽度（而非高度）渲染。\n",
