@@ -1,0 +1,45 @@
+name: Build KCC 汉化版
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: 检出本仓库（补丁）
+        uses: actions/checkout@v4
+        with:
+          path: patch
+
+      - name: 检出 KCC 上游源码
+        uses: actions/checkout@v4
+        with:
+          repository: ciromattia/kcc
+          ref: v11.0.1            # 与 strings_zh.json 的 kcc_version 保持一致
+          path: kcc
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'  # KCC 依赖 PySide6<6.10，不支持 3.14
+
+      - name: 打汉化补丁
+        run: python patch\patch_cn.py --dir kcc
+
+      - name: 安装依赖并打包
+        working-directory: kcc
+        run: |
+          pip install -r requirements.txt pyinstaller
+          python -m PyInstaller --clean -y kcc.spec
+
+      - name: 重命名产物
+        run: Move-Item kcc\dist\kcc.exe kcc\dist\KCC-v11.0.1-zh_CN.exe
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: KCC-zh_CN-windows
+          path: kcc/dist/KCC-v11.0.1-zh_CN.exe

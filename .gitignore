@@ -1,0 +1,8 @@
+# 上游源码与工作目录
+kcc/
+.venv/
+.venv313/
+__pycache__/
+*.pyc
+dist/
+build/
