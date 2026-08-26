@@ -51,8 +51,13 @@ python -m PyInstaller --clean -y kcc.spec
 
 也可以用 GitHub Actions 自动打包：`.github/workflows/build.yml` 已配置好，
 推送到 GitHub 后在 Actions 页手动触发（workflow_dispatch）即可产出
-`KCC-v11.0.1-zh_CN.exe`。升级 KCC 版本时记得同步修改工作流里的 `ref` 标签、
-产物文件名和 `strings_zh.json` 里的 `kcc_version`。
+Windows 的 `KCC-v11.0.1-zh_CN-windows.exe` 和 macOS 的 dmg（arm64 / intel）。
+打 `v*` 标签会自动创建 Release 并附上全部平台产物。
+升级 KCC 版本时记得同步修改工作流里的 `ref` 标签、产物文件名和
+`strings_zh.json` 里的 `kcc_version`。
+
+注意：macOS 版未做 Apple 签名/公证（与上游官方包相同），
+首次打开需在"系统设置 → 隐私与安全性"里允许，或右键 → 打开。
 
 ## 上游更新后如何维护
 

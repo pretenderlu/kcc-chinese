@@ -40,18 +40,85 @@ jobs:
           python -m PyInstaller --clean -y kcc.spec
 
       - name: 重命名产物
-        run: Move-Item kcc\dist\kcc.exe kcc\dist\KCC-v11.0.1-zh_CN.exe
+        run: Move-Item kcc\dist\kcc.exe kcc\dist\KCC-v11.0.1-zh_CN-windows.exe
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: KCC-zh_CN-windows
-          path: kcc/dist/KCC-v11.0.1-zh_CN.exe
+          path: kcc/dist/KCC-v11.0.1-zh_CN-windows.exe
 
-      - name: 发布 Release（仅 tag 触发时）
+  build-macos:
+    strategy:
+      matrix:
+        include:
+          - os: macos-14          # Apple Silicon (arm64)
+            arch: arm64
+          - os: macos-15-intel    # Intel
+            arch: intel
+    runs-on: ${{ matrix.os }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '14.0'
+    steps:
+      - name: 检出本仓库（补丁）
+        uses: actions/checkout@v4
+        with:
+          path: patch
+
+      - name: 检出 KCC 上游源码
+        uses: actions/checkout@v4
+        with:
+          repository: ciromattia/kcc
+          ref: v11.0.1            # 与 strings_zh.json 的 kcc_version 保持一致
+          path: kcc
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: 打汉化补丁
+        run: python patch/patch_cn.py --dir kcc
+
+      - name: 安装依赖
+        working-directory: kcc
+        run: |
+          python -m pip install --upgrade pip pyinstaller certifi
+          pip install -r requirements.txt
+
+      - name: 安装 appdmg（dmg 打包工具）
+        run: npm install -g appdmg
+
+      - name: 打包 .app 并制作 dmg
+        working-directory: kcc
+        run: python setup.py build_binary
+
+      - name: 重命名产物
+        run: |
+          cd kcc/dist
+          for f in *.dmg; do mv "$f" "KCC-v11.0.1-zh_CN-macos-${{ matrix.arch }}.dmg"; done
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: KCC-zh_CN-macos-${{ matrix.arch }}
+          path: kcc/dist/KCC-v11.0.1-zh_CN-macos-${{ matrix.arch }}.dmg
+
+  release:
+    needs: [ build-windows, build-macos ]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下载全部构建产物
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: KCC-zh_CN-*
+          merge-multiple: true
+
+      - name: 发布 Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           name: KCC 汉化版 ${{ github.ref_name }}
           generate_release_notes: true
-          files: kcc/dist/KCC-v11.0.1-zh_CN.exe
+          files: dist/*
