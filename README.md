@@ -66,3 +66,7 @@ Release 说明由固定模板生成，并自动附带对应上游版本的官方
 2. 运行 `python patch_cn.py --force`。
 3. 脚本会列出"未找到字符串"的警告——这些是上游新增或改动过的文本，
    在 `strings_zh.json` 中更新对应条目后重新打补丁即可。
+4. 打 `vX.Y.Z-zh` 标签推送，由 Actions 自动构建三平台产物并发布 Release。
+5. 发布完成后，把「上游更新内容」一节从英文原文翻译成中文，
+   用 `gh release edit <tag> --notes-file <文件>` 覆盖进 Release。
+   这一步是汉化发布的默认组成部分，发布即应完成，无需另行安排。
