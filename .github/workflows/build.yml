@@ -116,9 +116,47 @@ jobs:
           pattern: KCC-zh_CN-*
           merge-multiple: true
 
+      # tag 格式约定为 vX.Y.Z-zh，由此推导出上游版本 tag vX.Y.Z，
+      # 抓取上游官方发布说明原文附在 Release 里
+      - name: 生成 Release 说明（自动附上游更新内容）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          VER="${REF_NAME%-zh}"
+          cat > notes.md <<EOF
+          KCC ${VER} 简体中文汉化版。仅翻译界面文本，功能与上游官方版完全一致。
+
+          ## 下载说明
+
+          - **Windows**：KCC-${VER}-zh_CN-windows.exe，下载即用，无需安装 Python
+          - **macOS**：Apple Silicon 选 KCC-${VER}-zh_CN-macos-arm64.dmg，Intel 选 KCC-${VER}-zh_CN-macos-intel.dmg；未做 Apple 签名/公证，首次打开需**右键 → 打开**（与上游官方包相同）
+          - 输出 **MOBI** 需另行安装 kindlegen；源文件为 **CBR/RAR** 需安装 7-Zip（EPUB/CBZ/KPF 与 ZIP/图片/PDF 均不需要）
+
+          ## 汉化说明
+
+          基于上游 [KCC ${VER}](https://github.com/ciromattia/kcc/releases/tag/${VER}) 制作，共翻译 250 余处界面文本。补丁与使用说明见仓库主页。
+          EOF
+          UP_BODY=$(gh api "repos/ciromattia/kcc/releases/tags/${VER}" --jq .body 2>/dev/null) || UP_BODY=""
+          if [ -n "$UP_BODY" ]; then
+            {
+              echo
+              echo "## 上游更新内容（${VER}，官方原文）"
+              echo
+              echo "$UP_BODY"
+            } >> notes.md
+          else
+            {
+              echo
+              echo "## 上游更新内容"
+              echo
+              echo "未能自动获取上游发布说明，请见 https://github.com/ciromattia/kcc/releases/tag/${VER}"
+            } >> notes.md
+          fi
+
       - name: 发布 Release
         uses: softprops/action-gh-release@v2
         with:
           name: KCC 汉化版 ${{ github.ref_name }}
-          generate_release_notes: true
+          body_path: notes.md
           files: dist/*
