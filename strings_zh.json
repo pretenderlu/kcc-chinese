@@ -1,5 +1,5 @@
 {
- "kcc_version": "11.0.1",
+ "kcc_version": "11.0.3",
  "strings": {
   "kindlecomicconverter/KCC_ui.py": {
    "<html><head/><body><p>After calculating the cropping boundaries, &quot;back up&quot; a specified percentage amount.</p></body></html>": "<html><head/><body><p>计算出裁剪边界后，按指定百分比向外&quot;回退&quot;多保留一部分。</p></body></html>",
@@ -92,6 +92,7 @@
    "Humble Bundle Referral": "Humble Bundle 推广",
    "Support me on Ko-fi": "在 Ko-fi 上支持作者",
    "Label Spreads": "标记跨页",
+   "Hold shift while clicking for a low quality preview.": "按住 Shift 点击可生成低画质预览。",
    "<html><head/><body><p>Warning: chunk size greater than default may cause<br/>performance/battery issues, especially on older devices.</p></body></html>": "<html><head/><body><p>警告：分卷大小超过默认值可能导致<br/>性能/耗电问题，在旧设备上尤其明显。</p></body></html>",
    "Chunk size MB:": "分卷大小 MB：",
    "Greater than default may cause performance issues on older ereaders.": "超过默认值可能导致旧款电子阅读器出现性能问题。",
