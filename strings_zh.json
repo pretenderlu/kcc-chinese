@@ -1,5 +1,5 @@
 {
- "kcc_version": "11.2.0",
+ "kcc_version": "11.3.2",
  "strings": {
   "kindlecomicconverter/KCC_ui.py": {
    "<html><head/><body><p>After calculating the cropping boundaries, &quot;back up&quot; a specified percentage amount.</p></body></html>": "<html><head/><body><p>计算出裁剪边界后，按指定百分比向外&quot;回退&quot;多保留一部分。</p></body></html>",
@@ -214,8 +214,6 @@
    "Target resolution is not set!": "未设置目标分辨率！",
    "<a href=\"https://github.com/ciromattia/kcc#kindlegen\"><b>Install KindleGen (link)</b></a> to enable MOBI conversion for Kindles!": "<a href=\"https://github.com/ciromattia/kcc#kindlegen\"><b>安装 KindleGen（链接）</b></a>以启用 Kindle 的 MOBI 转换！",
    "Unsupported file type for ": "不支持的文件类型：",
-   "Your <a href=\"https://www.amazon.com/b?node=23496309011\">KindleGen</a>": "你的 <a href=\"https://www.amazon.com/b?node=23496309011\">KindleGen</a>",
-   " is outdated! MOBI conversion might fail.": " 版本过旧！MOBI 转换可能失败。",
    "<b>Tip:</b> Hover mouse over options/buttons to see explanations. Boxes can be partially/fully checked.": "<b>提示：</b>将鼠标悬停在选项/按钮上可查看说明。勾选框可半勾选或全勾选。",
    "<b>Tip:</b> You can drag and drop image folders or comic files/archives into this window to convert.": "<b>提示：</b>你可以将图片文件夹或漫画文件/压缩包拖入此窗口进行转换。",
    "<b>Tip:</b> Calibre may add margins! USB drop directly into the device's documents folder instead.": "<b>提示：</b>Calibre 可能会添加边距！改用 USB 直接拖入设备的 documents 文件夹即可。",
@@ -238,7 +236,9 @@
   "kindlecomicconverter/comic2ebook.py": {
    "Source files are probably created by KCC. The second conversion will decrease quality.": "源文件可能是由 KCC 生成的，二次转换会降低画质。",
    "More than 25% of images are smaller than target device resolution.": "超过 25% 的图片小于目标设备分辨率。",
-   "Consider enabling stretching or upscaling to improve readability.": "建议启用拉伸或放大以提高可读性。"
+   "Consider enabling stretching or upscaling to improve readability.": "建议启用拉伸或放大以提高可读性。",
+   "Your <a href=\"https://www.amazon.com/b?node=23496309011\">KindleGen</a>": "你的 <a href=\"https://www.amazon.com/b?node=23496309011\">KindleGen</a>",
+   " is outdated! MOBI conversion might fail.": " 版本过旧！MOBI 转换可能失败。"
   }
  },
  "fstrings": {
