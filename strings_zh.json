@@ -1,5 +1,5 @@
 {
- "kcc_version": "11.3.2",
+ "kcc_version": "12.0.0",
  "strings": {
   "kindlecomicconverter/KCC_ui.py": {
    "<html><head/><body><p>After calculating the cropping boundaries, &quot;back up&quot; a specified percentage amount.</p></body></html>": "<html><head/><body><p>计算出裁剪边界后，按指定百分比向外&quot;回退&quot;多保留一部分。</p></body></html>",
@@ -11,7 +11,9 @@
    "Vertical 4 Panel": "纵向 4 面板",
    "<html><head/><body><p style='white-space:pre'>Enable special parsing mode for Korean Webtoons.</p></body></html>": "<html><head/><body><p style='white-space:pre'>启用针对韩国条漫（Webtoon）的特殊解析模式。</p></body></html>",
    "Webtoon mode": "条漫模式",
-   "WebP (experimental)": "WebP（实验性）",
+   "Legacy Panel View": "旧版面板视图",
+   "Use legacy panel view method from KCC 6.\n": "使用 KCC 6 的旧版面板视图方式。\n",
+   "Kind of works on firmwares 5.19.2 (before revert) and 5.19.3+": "在固件 5.19.2（回退前的版本）和 5.19.3+ 上基本可用",
    "<html><head/><body><p>Attempt to crop main cover from wide image.</p></body></html>": "<html><head/><body><p>尝试从宽幅图片中裁剪出主封面。</p></body></html>",
    "Smart Cover Crop": "智能封面裁剪",
    "<html><head/><body><p><span style=\" font-weight:600; text-decoration: underline;\">Unchecked - Disabled</span></p><p>Disabled</p><p><span style=\" font-weight:600; text-decoration: underline;\">Indeterminate - Margins<br/></span>Margins</p><p><span style=\" font-weight:600; text-decoration: underline;\">Checked - Margins + page numbers<br/></span>Margins +page numbers</p></body></html>": "<html><head/><body><p><span style=\" font-weight:600; text-decoration: underline;\">不勾选 - 禁用</span></p><p>禁用裁剪</p><p><span style=\" font-weight:600; text-decoration: underline;\">半勾选 - 边距<br/></span>裁剪边距</p><p><span style=\" font-weight:600; text-decoration: underline;\">勾选 - 边距 + 页码<br/></span>裁剪边距和页码</p></body></html>",
@@ -134,7 +136,9 @@
    "Render vector PDFs to device width instead of height.\n": "将矢量 PDF 按设备宽度（而非高度）渲染。\n",
    "Useful if you plan to crop a little off the top and bottom to fill screen.": "如果你打算裁掉上下少量内容以填满屏幕，此选项很有用。",
    "Replace JPG with lossy WebP and PNG with lossless WebP. This includes the JPG Quality.\n": "用有损 WebP 替换 JPG、无损 WebP 替换 PNG，JPEG 质量设置同样生效。\n",
-   "Ignored for Kindle EPUB/MOBI and all PDF.": "对 Kindle EPUB/MOBI 和所有 PDF 无效。"
+   "Ignored for Kindle EPUB/MOBI and all PDF.\n": "对 Kindle EPUB/MOBI 和所有 PDF 无效。\n",
+   "Makes a large difference in filesize for color content.\n": "对彩色内容的文件体积影响很大。\n",
+   "Not very useful for BW content due to minimal filesize improvement compared to PNG and greater resource usage. ": "对黑白内容用处不大：相比 PNG 体积改善有限，且资源占用更高。"
   },
   "kindlecomicconverter/KCC_ui_editor.py": {
    "Metadata editor": "元数据编辑器",
