@@ -36,7 +36,10 @@ jobs:
           python-version: '3.13'  # KCC 依赖 PySide6<6.10，不支持 3.14
 
       - name: 打汉化补丁
-        run: python patch\patch_cn.py --dir kcc $env:PATCH_ARGS
+        # PowerShell 中空的 $env:PATCH_ARGS 会作为空串参数传入导致 argparse 报错，需判空
+        run: |
+          if ($env:PATCH_ARGS) { python patch\patch_cn.py --dir kcc $env:PATCH_ARGS }
+          else { python patch\patch_cn.py --dir kcc }
 
       - name: 安装依赖并打包
         working-directory: kcc
