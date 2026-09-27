@@ -202,6 +202,7 @@ def main():
     ap = argparse.ArgumentParser(description='KCC 一键汉化补丁')
     ap.add_argument('--dir', default=None, help='KCC 源码目录（默认：脚本旁的 kcc/）')
     ap.add_argument('--restore', action='store_true', help='还原英文原版')
+    ap.add_argument('--no-demo', action='store_true', help='纯汉化版：不注入悬停动画演示（仍注入汉化版标识）')
     ap.add_argument('--force', action='store_true', help='版本不匹配时仍强制执行')
     args = ap.parse_args()
 
@@ -267,7 +268,10 @@ def main():
         total += count
 
     print(f'\n完成，共替换 {total} 处。')
-    inject_demo(root)
+    if args.no_demo:
+        print('纯汉化版：跳过悬停动画演示注入。')
+    else:
+        inject_demo(root)
     inject_branding(root)
     if total:
         print('如需还原英文原版：python patch_cn.py --restore')

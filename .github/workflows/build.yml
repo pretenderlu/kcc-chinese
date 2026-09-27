@@ -13,7 +13,10 @@ jobs:
   build-windows:
     runs-on: windows-latest
     env:
-      DEMO: ${{ contains(github.ref_name, '-demo') && '-demo' || '' }}
+      # 产物名后缀：演示版 -demo / 增强版 -enhanced / 纯汉化版为空
+      VARIANT: ${{ contains(github.ref_name, '-demo') && '-demo' || (contains(github.ref_name, '-enhanced') && '-enhanced' || '') }}
+      # 纯汉化版（vX.Y.Z-zh 标签）不注入悬停动画演示，其余构建完整注入
+      PATCH_ARGS: ${{ (startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-demo') && !contains(github.ref_name, '-enhanced')) && '--no-demo' || '' }}
     steps:
       - name: 检出本仓库（补丁）
         uses: actions/checkout@v4
@@ -33,7 +36,7 @@ jobs:
           python-version: '3.13'  # KCC 依赖 PySide6<6.10，不支持 3.14
 
       - name: 打汉化补丁
-        run: python patch\patch_cn.py --dir kcc
+        run: python patch\patch_cn.py --dir kcc $env:PATCH_ARGS
 
       - name: 安装依赖并打包
         working-directory: kcc
@@ -42,13 +45,13 @@ jobs:
           python -m PyInstaller --clean -y kcc.spec
 
       - name: 重命名产物
-        run: Move-Item kcc\dist\kcc.exe "kcc\dist\KCC-v12.0.0-zh_CN$env:DEMO-windows.exe"
+        run: Move-Item kcc\dist\kcc.exe "kcc\dist\KCC-v12.0.0-zh_CN$env:VARIANT-windows.exe"
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: KCC-zh_CN-windows
-          path: kcc/dist/KCC-v12.0.0-zh_CN${{ env.DEMO }}-windows.exe
+          path: kcc/dist/KCC-v12.0.0-zh_CN${{ env.VARIANT }}-windows.exe
 
   build-macos:
     strategy:
@@ -61,7 +64,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       MACOSX_DEPLOYMENT_TARGET: '14.0'
-      DEMO: ${{ contains(github.ref_name, '-demo') && '-demo' || '' }}
+      VARIANT: ${{ contains(github.ref_name, '-demo') && '-demo' || (contains(github.ref_name, '-enhanced') && '-enhanced' || '') }}
+      PATCH_ARGS: ${{ (startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-demo') && !contains(github.ref_name, '-enhanced')) && '--no-demo' || '' }}
     steps:
       - name: 检出本仓库（补丁）
         uses: actions/checkout@v4
@@ -81,7 +85,7 @@ jobs:
           python-version: '3.13'
 
       - name: 打汉化补丁
-        run: python patch/patch_cn.py --dir kcc
+        run: python patch/patch_cn.py --dir kcc $PATCH_ARGS
 
       - name: 安装依赖
         working-directory: kcc
@@ -99,13 +103,13 @@ jobs:
       - name: 重命名产物
         run: |
           cd kcc/dist
-          for f in *.dmg; do mv "$f" "KCC-v12.0.0-zh_CN${DEMO}-macos-${{ matrix.arch }}.dmg"; done
+          for f in *.dmg; do mv "$f" "KCC-v12.0.0-zh_CN${VARIANT}-macos-${{ matrix.arch }}.dmg"; done
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: KCC-zh_CN-macos-${{ matrix.arch }}
-          path: kcc/dist/KCC-v12.0.0-zh_CN${{ env.DEMO }}-macos-${{ matrix.arch }}.dmg
+          path: kcc/dist/KCC-v12.0.0-zh_CN${{ env.VARIANT }}-macos-${{ matrix.arch }}.dmg
 
   release:
     needs: [ build-windows, build-macos ]
@@ -119,7 +123,7 @@ jobs:
           pattern: KCC-zh_CN-*
           merge-multiple: true
 
-      # tag 格式约定为 vX.Y.Z-zh 或 vX.Y.Z-zh-demo，由此推导出上游版本 tag vX.Y.Z，
+      # tag 格式约定为 vX.Y.Z-zh / vX.Y.Z-zh-demo / vX.Y.Z-zh-enhanced，由此推导出上游版本 tag vX.Y.Z，
       # 抓取上游官方发布说明原文附在 Release 里
       - name: 生成 Release 说明（自动附上游更新内容）
         env:
@@ -128,10 +132,13 @@ jobs:
         run: |
           VER="${REF_NAME%%-zh*}"
           if [[ "$REF_NAME" == *-demo* ]]; then
-            DEMO="-demo"
+            VARIANT="-demo"
             HEADLINE="KCC ${VER} 简体中文汉化**演示版**。在汉化基础上新增「悬停动画演示」预览功能：将鼠标悬停在选项上，即可查看该选项实际效果的动画演示（当前覆盖专家模式全部 42 个选项）。"
+          elif [[ "$REF_NAME" == *-enhanced* ]]; then
+            VARIANT="-enhanced"
+            HEADLINE="KCC ${VER} 简体中文汉化**增强版**（Chinese Enhanced Edition）。在完整汉化基础上新增「悬停动画演示」：鼠标悬停在选项上即可查看该选项实际效果的动画演示（覆盖专家模式全部 42 个选项），窗口标题与状态栏带有汉化版标识与仓库入口。"
           else
-            DEMO=""
+            VARIANT=""
             HEADLINE="KCC ${VER} 简体中文汉化版。仅翻译界面文本，功能与上游官方版完全一致。"
           fi
           cat > notes.md <<EOF
@@ -139,8 +146,8 @@ jobs:
 
           ## 下载说明
 
-          - **Windows**：KCC-${VER}-zh_CN${DEMO}-windows.exe，下载即用，无需安装 Python
-          - **macOS**：Apple Silicon 选 KCC-${VER}-zh_CN${DEMO}-macos-arm64.dmg，Intel 选 KCC-${VER}-zh_CN${DEMO}-macos-intel.dmg；未做 Apple 签名/公证，首次打开需**右键 → 打开**（与上游官方包相同）
+          - **Windows**：KCC-${VER}-zh_CN${VARIANT}-windows.exe，下载即用，无需安装 Python
+          - **macOS**：Apple Silicon 选 KCC-${VER}-zh_CN${VARIANT}-macos-arm64.dmg，Intel 选 KCC-${VER}-zh_CN${VARIANT}-macos-intel.dmg；未做 Apple 签名/公证，首次打开需**右键 → 打开**（与上游官方包相同）
           - 输出 **MOBI** 需另行安装 kindlegen；源文件为 **CBR/RAR** 需安装 7-Zip（EPUB/CBZ/KPF 与 ZIP/图片/PDF 均不需要）
 
           ## 汉化说明
@@ -167,7 +174,7 @@ jobs:
       - name: 发布 Release
         uses: softprops/action-gh-release@v2
         with:
-          name: KCC 汉化${{ contains(github.ref_name, '-demo') && '演示' || '' }}版 ${{ github.ref_name }}
+          name: ${{ contains(github.ref_name, '-enhanced') && format('KCC Chinese Enhanced Edition {0}', github.ref_name) || (contains(github.ref_name, '-demo') && format('KCC 汉化演示版 {0}', github.ref_name) || format('KCC 汉化版 {0}', github.ref_name)) }}
           body_path: notes.md
           prerelease: ${{ contains(github.ref_name, '-demo') }}
           files: dist/*

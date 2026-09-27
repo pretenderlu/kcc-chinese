@@ -57,10 +57,18 @@ python -m PyInstaller --clean -y kcc.spec
 也可以用 GitHub Actions 自动打包：`.github/workflows/build.yml` 已配置好，
 推送到 GitHub 后在 Actions 页手动触发（workflow_dispatch）即可产出
 Windows 的 `KCC-v12.0.0-zh_CN-windows.exe` 和 macOS 的 dmg（arm64 / intel）。
-打 `vX.Y.Z-zh` 格式的标签（如 `v12.0.0-zh`）会自动创建 Release 并附上全部平台产物，
+
+### 发布线（打标签自动发布 Release）
+
+| 标签格式 | 版本线 | 说明 |
+| --- | --- | --- |
+| `vX.Y.Z-zh` | 纯汉化版 | 仅翻译界面文本，功能与上游一致（补丁加 `--no-demo`） |
+| `vX.Y.Z-zh-enhanced` | 汉化增强版（Chinese Enhanced Edition） | 汉化 + 悬停动画演示 + 汉化版标识，正式发布 |
+| `vX.Y.Z-zh-demo` | 汉化演示版 | 增强功能的预览通道，标记为 pre-release |
+
+三种标签都会自动创建 Release 并附上全部平台产物，
 Release 说明由固定模板生成，并自动附带对应上游版本的官方更新内容。
-打 `vX.Y.Z-zh-demo` 格式的标签则发布「演示版」（含悬停动画演示功能），
-产物文件名带 `-demo`，Release 标记为 pre-release。
+每次跟版发布时，纯汉化版和汉化增强版各发一次（两个标签）。
 升级 KCC 版本时记得同步修改工作流里的 `ref` 标签、产物文件名和
 `strings_zh.json` 里的 `kcc_version`。
 
@@ -73,7 +81,8 @@ Release 说明由固定模板生成，并自动附带对应上游版本的官方
 2. 运行 `python patch_cn.py --force`。
 3. 脚本会列出"未找到字符串"的警告——这些是上游新增或改动过的文本，
    在 `strings_zh.json` 中更新对应条目后重新打补丁即可。
-4. 打 `vX.Y.Z-zh` 标签推送，由 Actions 自动构建三平台产物并发布 Release。
+4. 打 `vX.Y.Z-zh`（纯汉化版）与 `vX.Y.Z-zh-enhanced`（汉化增强版）两个标签推送，
+   由 Actions 自动构建三平台产物并分别发布 Release。
 5. 本地构建一份 exe（见上文「打包汉化版 exe」），
    按版本号存入 `builds/<版本号>/` 归档。
 6. 发布完成后，把「上游更新内容」一节从英文原文翻译成中文，
