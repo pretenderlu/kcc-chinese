@@ -45,6 +45,51 @@ DEMO_HOOK = '''
         # KCC_ZH_DEMO_END
 '''
 
+# 汉化版标识（仓库信息）注入配置
+BRAND_MARKER = 'KCC_ZH_BRAND_BEGIN'
+BRAND_ANCHOR = 'MW.show()'         # KCCGUI.__init__ 末尾
+BRAND_REPO = 'https://github.com/pretenderlu/kcc-chinese'
+BRAND_HOOK = '''
+        # KCC_ZH_BRAND_BEGIN（KCC 汉化版标识：标题后缀 + 状态栏仓库链接）
+        try:
+            from PySide6.QtWidgets import QPushButton as _zhQPushButton
+            from PySide6.QtGui import QDesktopServices as _zhQDS, QCursor as _zhQCursor
+            from PySide6.QtCore import QUrl as _zhQUrl, Qt as _zhQt
+            _zhBrand = _zhQPushButton('汉化增强版 · GitHub')
+            _zhBrand.setFlat(True)
+            _zhBrand.setStyleSheet(
+                'QPushButton{border:none;color:#3b82f6;text-decoration:underline;padding:0 8px;}'
+                'QPushButton:hover{color:#1d4ed8;}')
+            _zhBrand.setCursor(_zhQCursor(_zhQt.PointingHandCursor))
+            _zhBrand.setToolTip('基于 ciromattia/kcc 的简体中文汉化 + 悬停动画演示增强\\n点击打开汉化版仓库：github.com/pretenderlu/kcc-chinese')
+            _zhBrand.clicked.connect(lambda: _zhQDS.openUrl(
+                _zhQUrl('https://github.com/pretenderlu/kcc-chinese')))
+            MW.statusBar().addPermanentWidget(_zhBrand)
+            MW.setWindowTitle(MW.windowTitle() + '（汉化增强版）')
+        except Exception:
+            pass
+        # KCC_ZH_BRAND_END
+'''
+
+
+def inject_branding(root):
+    """在 KCCGUI 初始化末尾注入汉化版标识（标题后缀 + 仓库链接按钮）。"""
+    gui_file = root / 'kindlecomicconverter' / 'KCC_gui.py'
+    text = gui_file.read_bytes().decode('utf-8')
+    if BRAND_MARKER in text:
+        print('汉化标识: 已注入过，跳过')
+        return
+    lines = text.splitlines(keepends=True)
+    for i, ln in enumerate(lines):
+        if ln.strip() == BRAND_ANCHOR:
+            eol = '\r\n' if ln.endswith('\r\n') else '\n'
+            hook = BRAND_HOOK.replace('\n', eol)
+            lines.insert(i + 1, hook)
+            gui_file.write_bytes(''.join(lines).encode('utf-8'))
+            print('汉化标识: 已注入 kindlecomicconverter/KCC_gui.py')
+            return
+    print('  警告：汉化标识注入锚点未找到，已跳过')
+
 
 def inject_demo(root):
     """把 KCC_demo.py 拷入源码树，并在 KCCGUI 初始化末尾注入安装调用。"""
@@ -223,6 +268,7 @@ def main():
 
     print(f'\n完成，共替换 {total} 处。')
     inject_demo(root)
+    inject_branding(root)
     if total:
         print('如需还原英文原版：python patch_cn.py --restore')
 
