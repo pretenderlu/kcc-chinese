@@ -15,7 +15,7 @@
 - 面板视图（qualityBox → autoscale/hq）：
   不勾选=4 面板；半勾选=2 面板（上下）；勾选=4 高清面板
 - 从右向左（mangaBox → righttoleft）：页面/分格阅读顺序翻转
-- 条漫模式（webtoonBox → webtoon）：多页拼接为长条，再按屏高沿格子间隙重切
+- 条漫模式（webtoonBox → webtoon）：多个长条拼接后按屏高沿格子间隙重切成页
 - 裁剪模式（croppingBox → options.cropping）：
   不勾选=0 不裁剪；半勾选=1 cropMargin 裁白边；
   勾选=2 cropPageNumber 以页码和画面为界裁掉外围（页码保留）
@@ -717,30 +717,36 @@ class DemoCanvas(QWidget):
 
     # ================= 条漫模式 =================
     # 代码语义（comic2ebook.py → comic2panel.py）：
-    # 先把多页垂直拼接为一整张长条，再在两格之间的空白处下刀，
+    # 先把多个长条（源文件）垂直拼接为一整张长条，再在两格之间的空白处下刀，
     # 按设备屏幕高度重切成一屏一屏的虚拟页（绝不切分格子）
 
-    _WT_PW, _WT_PH = 100, 96      # 源页面尺寸（正常竖版比例）
-    _WT_S0 = 0.56                 # 长条阶段整体等比缩小展示（只缩小，不压扁）
+    _WT_CELL = 84                 # 格子边长（正方形格子）
+    _WT_S0 = 0.65                 # 长条阶段整体等比缩小展示（只缩小，不压扁）
 
-    def _wt_strip_rect(self, i, gap, scale):
-        """第 i 页在长条（等比缩小展示）中的位置。"""
-        w, h = self._WT_PW * scale, self._WT_PH * scale
-        g = gap * scale
-        x = (self.width() - w) / 2
-        total = h * 4 + g * 3
-        y0 = 26 + (232 - total) / 2
-        return QRectF(x, y0 + i * (h + g), w, h)
+    def _wt_src_rect(self, i):
+        """源文件阶段：两个长条并排，各含两格。"""
+        c = self._WT_CELL
+        gapx = 24
+        x0 = (self.width() - (c * 2 + gapx)) / 2
+        y0 = 26 + (232 - c * 2) / 2
+        if i < 2:
+            return QRectF(x0, y0 + i * c, c, c)
+        return QRectF(x0 + c + gapx, y0 + (i - 2) * c, c, c)
+
+    def _wt_strip_rect(self, i):
+        """拼接后的长条（等比缩小展示）中第 i 格的位置。"""
+        c = self._WT_CELL * self._WT_S0
+        x = (self.width() - c) / 2
+        y0 = 26 + (232 - c * 4) / 2
+        return QRectF(x, y0 + i * c, c, c)
 
     def _wt_page_rect(self, i):
-        """第 i 页在成品（两屏并排、正常页面大小）中的位置。"""
-        w, h = self._WT_PW, self._WT_PH
-        gapx = 30
-        x0 = (self.width() - (w * 2 + gapx)) / 2
-        y0 = 26 + (232 - h * 2) / 2
-        if i < 2:
-            return QRectF(x0, y0 + i * h, w, h)
-        return QRectF(x0 + w + gapx, y0 + (i - 2) * h, w, h)
+        """成品阶段：四页并排、正常页面大小。"""
+        c = self._WT_CELL
+        gapx = 14
+        x0 = (self.width() - (c * 4 + gapx * 3)) / 2
+        y = 26 + (232 - c) / 2
+        return QRectF(x0 + i * (c + gapx), y, c, c)
 
     @staticmethod
     def _lerp_rect(a, b, k):
@@ -750,28 +756,23 @@ class DemoCanvas(QWidget):
                       a.height() + (b.height() - a.height()) * k)
 
     def _sc_webtoon_pages(self, p, t):
-        """不勾选：逐页独立（2x2 排开）。"""
-        w, h = self._WT_PW * 0.85, self._WT_PH * 0.85
-        gap = 14
-        x0 = (self.width() - (w * 2 + gap)) / 2
-        y0 = 26 + (232 - (h * 2 + gap)) / 2
+        """不勾选：两个长条各自作为独立的一页。"""
         for i in range(4):
-            r = QRectF(x0 + (i % 2) * (w + gap), y0 + (i // 2) * (h + gap), w, h)
-            draw_manga_page(p, r.toRect(), variant=i % 3)
-        self._caption(p, '逐页独立处理，页与页分开')
+            draw_manga_page(p, self._wt_src_rect(i).toRect(), variant=i % 3)
+        self._caption(p, '每个长条作为独立的一页，互不拼接')
 
     def _sc_webtoon_strip(self, p, t):
-        """勾选：拼接为长条，再按屏幕高度沿格子间隙重切。"""
-        merge = _ease(t / 0.2)              # 阶段1：页缝闭合，拼成长条
-        cut = _ease((t - 0.32) / 0.14)      # 阶段2：切割线出现
-        k = _ease((t - 0.54) / 0.3)         # 阶段3：分成两屏并恢复正常页面大小
-        gap = 8 * (1 - merge)
+        """勾选：两个长条拼成一根，再按屏幕高度沿格子间隙切成四页。"""
+        m = _ease((t - 0.12) / 0.2)         # 阶段1：拼接为一根长条
+        cut = _ease((t - 0.44) / 0.12)      # 阶段2：切割线出现
+        k = _ease((t - 0.62) / 0.3)         # 阶段3：分成四页并恢复正常页面大小
         for i in range(4):
-            r = self._lerp_rect(self._wt_strip_rect(i, gap, self._WT_S0),
+            r = self._lerp_rect(self._lerp_rect(self._wt_src_rect(i),
+                                                self._wt_strip_rect(i), m),
                                 self._wt_page_rect(i), k)
             draw_manga_page(p, r.toRect(), variant=i % 3)
             # 接缝处的页边框随拼接淡去，呈现无缝效果；切开后恢复
-            fade = merge * (1 - k)
+            fade = m * (1 - k)
             if fade > 0:
                 ov = QColor(255, 255, 255)
                 ov.setAlpha(int(255 * fade))
@@ -781,37 +782,45 @@ class DemoCanvas(QWidget):
                     p.drawRect(QRectF(r.left(), r.top() - 1, r.width(), 3))
                 if i < 3:
                     p.drawRect(QRectF(r.left(), r.bottom() - 2, r.width(), 3))
-        # 切割线：落在中间两格之间的空白处（屏幕高度的整数倍位置）
+        # 切割线：落在格子之间的空白处（屏幕高度的整数倍位置）
         if cut > 0 and k < 1:
-            a = self._lerp_rect(self._wt_strip_rect(1, gap, self._WT_S0),
-                                self._wt_page_rect(1), k)
-            b = self._lerp_rect(self._wt_strip_rect(2, gap, self._WT_S0),
-                                self._wt_page_rect(2), k)
-            seam_y = (a.bottom() + b.top()) / 2
             c = QColor(_ACCENT)
             c.setAlpha(int(255 * cut * (1 - k)))
             p.setPen(QPen(c, 2, Qt.DashLine))
             p.setBrush(Qt.NoBrush)
-            p.drawLine(QPointF(a.left() - 14, seam_y),
-                       QPointF(a.right() + 14, seam_y))
-        # 两屏的外框：表示「一屏」的成品页
+            for j in range(1, 4):
+                a = self._lerp_rect(self._wt_strip_rect(j - 1),
+                                    self._wt_page_rect(j - 1), k)
+                b = self._lerp_rect(self._wt_strip_rect(j),
+                                    self._wt_page_rect(j), k)
+                seam_y = (a.bottom() + b.top()) / 2
+                p.drawLine(QPointF(a.left() - 14, seam_y),
+                           QPointF(a.right() + 14, seam_y))
+        # 四页的外框与页码
         if k > 0:
             c = QColor(34, 139, 34)
             c.setAlpha(int(255 * k))
             p.setPen(QPen(c, 2))
             p.setBrush(Qt.NoBrush)
-            top = self._wt_page_rect(0).united(self._wt_page_rect(1)).adjusted(-6, -6, 6, 6)
-            bottom = self._wt_page_rect(2).united(self._wt_page_rect(3)).adjusted(-6, -6, 6, 6)
-            p.drawRoundedRect(top, 5, 5)
-            p.drawRoundedRect(bottom, 5, 5)
-        if t < 0.28:
-            self._caption(p, '先垂直拼接为无缝长条……', _ACCENT)
-        elif t < 0.52:
+            for i in range(4):
+                p.drawRoundedRect(self._wt_page_rect(i).adjusted(-5, -5, 5, 5), 5, 5)
+            f = p.font()
+            f.setPointSizeF(8.5)
+            p.setFont(f)
+            for i in range(4):
+                r = self._wt_page_rect(i)
+                p.drawText(QRectF(r.left(), r.bottom() + 8, r.width(), 14),
+                           Qt.AlignHCenter, f'第 {i + 1} 页')
+        if t < 0.14:
+            self._caption(p, '两个长条源文件', _ACCENT)
+        elif t < 0.42:
+            self._caption(p, '垂直拼接为一根长条……', _ACCENT)
+        elif t < 0.6:
             self._caption(p, '在格子间隙的空白处定位切割线', _ACCENT)
         elif k < 1:
             self._caption(p, '按屏幕高度切开……', _ACCENT)
         else:
-            self._caption(p, '切成一屏一屏，格子保持完整', QColor(34, 139, 34), True)
+            self._caption(p, '切成四页，格子保持完整', QColor(34, 139, 34), True)
 
     # ================= 裁剪模式 =================
     # 代码语义（image.py / KCC_gui.py）：
@@ -2877,7 +2886,7 @@ _SPECS = {
     'rotateBox': ('跨页拆分 · 动画演示', '横向双页跨页的三种处理方式', 'spread'),
     'qualityBox': ('面板视图 · 动画演示', '把整页漫画逐格放大，三种档位', 'panel'),
     'mangaBox': ('从右向左 · 动画演示', '切换漫画的阅读方向', 'manga'),
-    'webtoonBox': ('条漫模式 · 动画演示', '拼接为长条后按屏高沿格子间隙切成一屏一屏', 'webtoon'),
+    'webtoonBox': ('条漫模式 · 动画演示', '两个长条拼接后按屏高沿格子间隙切成四页', 'webtoon'),
     'croppingBox': ('裁剪模式 · 动画演示', '不裁剪 / 裁白边 / 页码定界裁剪', 'crop'),
     'upscaleBox': ('拉伸/放大 · 动画演示', '小图适配屏幕的三种策略', 'upscale'),
     'colorBox': ('彩色模式 · 动画演示', '灰度（墨水屏）或保留彩色', 'color'),
