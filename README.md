@@ -49,6 +49,10 @@ python -m PyInstaller --clean -y kcc.spec
 # 产物：kcc/dist/kcc.exe
 ```
 
+本地构建产物按版本号归档在 `builds/<版本号>/`（如 `builds/v12.0.0/`），
+该目录已加入 .gitignore，不会提交到仓库。每次跟版发布时，
+除 GitHub Actions 统一打包外，本地也应构建一份并存入对应版本目录。
+
 也可以用 GitHub Actions 自动打包：`.github/workflows/build.yml` 已配置好，
 推送到 GitHub 后在 Actions 页手动触发（workflow_dispatch）即可产出
 Windows 的 `KCC-v12.0.0-zh_CN-windows.exe` 和 macOS 的 dmg（arm64 / intel）。
@@ -67,6 +71,8 @@ Release 说明由固定模板生成，并自动附带对应上游版本的官方
 3. 脚本会列出"未找到字符串"的警告——这些是上游新增或改动过的文本，
    在 `strings_zh.json` 中更新对应条目后重新打补丁即可。
 4. 打 `vX.Y.Z-zh` 标签推送，由 Actions 自动构建三平台产物并发布 Release。
-5. 发布完成后，把「上游更新内容」一节从英文原文翻译成中文，
+5. 本地构建一份 exe（见上文「打包汉化版 exe」），
+   按版本号存入 `builds/<版本号>/` 归档。
+6. 发布完成后，把「上游更新内容」一节从英文原文翻译成中文，
    用 `gh release edit <tag> --notes-file <文件>` 覆盖进 Release。
    这一步是汉化发布的默认组成部分，发布即应完成，无需另行安排。
