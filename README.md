@@ -79,3 +79,6 @@ Release 说明由固定模板生成，并自动附带对应上游版本的官方
 6. 发布完成后，把「上游更新内容」一节从英文原文翻译成中文，
    用 `gh release edit <tag> --notes-file <文件>` 覆盖进 Release。
    这一步是汉化发布的默认组成部分，发布即应完成，无需另行安排。
+7. 若需要用同一个标签重新发布：先删除 GitHub 上的 **Release**
+   （`gh release delete <tag>`，只删远程标签不够——删标签会让旧 Release
+   变成草稿并导致 release job 报 `already_exists`），再删除并重推标签。
