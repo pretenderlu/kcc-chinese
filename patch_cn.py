@@ -31,6 +31,43 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 MAPPING_FILE = SCRIPT_DIR / 'strings_zh.json'
 BACKUP_SUFFIX = '.orig'
 
+# 悬停动画演示浮层（KCC_demo.py）注入配置
+DEMO_MODULE = SCRIPT_DIR / 'KCC_demo.py'
+DEMO_MARKER = 'KCC_ZH_DEMO_BEGIN'
+DEMO_ANCHOR = 'MW.show()'          # KCCGUI.__init__ 末尾，演示在此之后安装
+DEMO_HOOK = '''
+        # KCC_ZH_DEMO_BEGIN（KCC 汉化版增强：悬停动画演示浮层）
+        try:
+            from . import KCC_demo
+            KCC_demo.install_demos(GUI)
+        except Exception:
+            pass
+        # KCC_ZH_DEMO_END
+'''
+
+
+def inject_demo(root):
+    """把 KCC_demo.py 拷入源码树，并在 KCCGUI 初始化末尾注入安装调用。"""
+    if not DEMO_MODULE.exists():
+        return
+    pkg = root / 'kindlecomicconverter'
+    shutil.copy2(DEMO_MODULE, pkg / 'KCC_demo.py')
+    gui_file = pkg / 'KCC_gui.py'
+    text = gui_file.read_bytes().decode('utf-8')
+    if DEMO_MARKER in text:
+        print('演示浮层: 已注入过，跳过')
+        return
+    lines = text.splitlines(keepends=True)
+    for i, ln in enumerate(lines):
+        if ln.strip() == DEMO_ANCHOR:
+            eol = '\r\n' if ln.endswith('\r\n') else '\n'
+            hook = DEMO_HOOK.replace('\n', eol)
+            lines.insert(i + 1, hook)
+            gui_file.write_bytes(''.join(lines).encode('utf-8'))
+            print('演示浮层: 已注入 kindlecomicconverter/KCC_gui.py')
+            return
+    print('  警告：演示浮层注入锚点未找到，已跳过')
+
 
 def escape_fragment(s):
     """把字符串转义成它在 .py 源码里的原始文本形式（用于匹配 f-string 片段）。"""
@@ -141,6 +178,10 @@ def main():
                 bak.unlink()
                 restored += 1
                 print(f'已还原: {rel}')
+        demo = root / 'kindlecomicconverter' / 'KCC_demo.py'
+        if demo.exists():
+            demo.unlink()
+            print('已删除: kindlecomicconverter/KCC_demo.py')
         if restored:
             print(f'完成，共还原 {restored} 个文件。')
         else:
@@ -181,6 +222,7 @@ def main():
         total += count
 
     print(f'\n完成，共替换 {total} 处。')
+    inject_demo(root)
     if total:
         print('如需还原英文原版：python patch_cn.py --restore')
 

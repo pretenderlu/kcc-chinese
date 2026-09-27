@@ -12,6 +12,8 @@ permissions:
 jobs:
   build-windows:
     runs-on: windows-latest
+    env:
+      DEMO: ${{ contains(github.ref_name, '-demo') && '-demo' || '' }}
     steps:
       - name: 检出本仓库（补丁）
         uses: actions/checkout@v4
@@ -40,13 +42,13 @@ jobs:
           python -m PyInstaller --clean -y kcc.spec
 
       - name: 重命名产物
-        run: Move-Item kcc\dist\kcc.exe kcc\dist\KCC-v12.0.0-zh_CN-windows.exe
+        run: Move-Item kcc\dist\kcc.exe "kcc\dist\KCC-v12.0.0-zh_CN$env:DEMO-windows.exe"
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: KCC-zh_CN-windows
-          path: kcc/dist/KCC-v12.0.0-zh_CN-windows.exe
+          path: kcc/dist/KCC-v12.0.0-zh_CN${{ env.DEMO }}-windows.exe
 
   build-macos:
     strategy:
@@ -59,6 +61,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       MACOSX_DEPLOYMENT_TARGET: '14.0'
+      DEMO: ${{ contains(github.ref_name, '-demo') && '-demo' || '' }}
     steps:
       - name: 检出本仓库（补丁）
         uses: actions/checkout@v4
@@ -96,13 +99,13 @@ jobs:
       - name: 重命名产物
         run: |
           cd kcc/dist
-          for f in *.dmg; do mv "$f" "KCC-v12.0.0-zh_CN-macos-${{ matrix.arch }}.dmg"; done
+          for f in *.dmg; do mv "$f" "KCC-v12.0.0-zh_CN${DEMO}-macos-${{ matrix.arch }}.dmg"; done
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: KCC-zh_CN-macos-${{ matrix.arch }}
-          path: kcc/dist/KCC-v12.0.0-zh_CN-macos-${{ matrix.arch }}.dmg
+          path: kcc/dist/KCC-v12.0.0-zh_CN${{ env.DEMO }}-macos-${{ matrix.arch }}.dmg
 
   release:
     needs: [ build-windows, build-macos ]
@@ -116,21 +119,28 @@ jobs:
           pattern: KCC-zh_CN-*
           merge-multiple: true
 
-      # tag 格式约定为 vX.Y.Z-zh，由此推导出上游版本 tag vX.Y.Z，
+      # tag 格式约定为 vX.Y.Z-zh 或 vX.Y.Z-zh-demo，由此推导出上游版本 tag vX.Y.Z，
       # 抓取上游官方发布说明原文附在 Release 里
       - name: 生成 Release 说明（自动附上游更新内容）
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REF_NAME: ${{ github.ref_name }}
         run: |
-          VER="${REF_NAME%-zh}"
+          VER="${REF_NAME%%-zh*}"
+          if [[ "$REF_NAME" == *-demo* ]]; then
+            DEMO="-demo"
+            HEADLINE="KCC ${VER} 简体中文汉化**演示版**。在汉化基础上新增「悬停动画演示」预览功能：将鼠标悬停在选项上，即可查看该选项实际效果的动画演示（当前覆盖专家模式全部 42 个选项）。"
+          else
+            DEMO=""
+            HEADLINE="KCC ${VER} 简体中文汉化版。仅翻译界面文本，功能与上游官方版完全一致。"
+          fi
           cat > notes.md <<EOF
-          KCC ${VER} 简体中文汉化版。仅翻译界面文本，功能与上游官方版完全一致。
+          ${HEADLINE}
 
           ## 下载说明
 
-          - **Windows**：KCC-${VER}-zh_CN-windows.exe，下载即用，无需安装 Python
-          - **macOS**：Apple Silicon 选 KCC-${VER}-zh_CN-macos-arm64.dmg，Intel 选 KCC-${VER}-zh_CN-macos-intel.dmg；未做 Apple 签名/公证，首次打开需**右键 → 打开**（与上游官方包相同）
+          - **Windows**：KCC-${VER}-zh_CN${DEMO}-windows.exe，下载即用，无需安装 Python
+          - **macOS**：Apple Silicon 选 KCC-${VER}-zh_CN${DEMO}-macos-arm64.dmg，Intel 选 KCC-${VER}-zh_CN${DEMO}-macos-intel.dmg；未做 Apple 签名/公证，首次打开需**右键 → 打开**（与上游官方包相同）
           - 输出 **MOBI** 需另行安装 kindlegen；源文件为 **CBR/RAR** 需安装 7-Zip（EPUB/CBZ/KPF 与 ZIP/图片/PDF 均不需要）
 
           ## 汉化说明
@@ -157,6 +167,7 @@ jobs:
       - name: 发布 Release
         uses: softprops/action-gh-release@v2
         with:
-          name: KCC 汉化版 ${{ github.ref_name }}
+          name: KCC 汉化${{ contains(github.ref_name, '-demo') && '演示' || '' }}版 ${{ github.ref_name }}
           body_path: notes.md
+          prerelease: ${{ contains(github.ref_name, '-demo') }}
           files: dist/*

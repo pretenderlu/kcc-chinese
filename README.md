@@ -39,6 +39,7 @@ python patch_cn.py --force     # KCC 版本与补丁不一致时强制执行（�
 
 - `patch_cn.py` — 补丁脚本
 - `strings_zh.json` — 英中对照表（`strings` 为整串精确匹配，`fstrings` 为 f-string 片段匹配）
+- `KCC_demo.py` — 悬停动画演示浮层（打补丁时自动注入源码树；不需要该功能可删除此文件后再打补丁）
 
 ## 打包汉化版 exe
 
@@ -58,6 +59,8 @@ python -m PyInstaller --clean -y kcc.spec
 Windows 的 `KCC-v12.0.0-zh_CN-windows.exe` 和 macOS 的 dmg（arm64 / intel）。
 打 `vX.Y.Z-zh` 格式的标签（如 `v12.0.0-zh`）会自动创建 Release 并附上全部平台产物，
 Release 说明由固定模板生成，并自动附带对应上游版本的官方更新内容。
+打 `vX.Y.Z-zh-demo` 格式的标签则发布「演示版」（含悬停动画演示功能），
+产物文件名带 `-demo`，Release 标记为 pre-release。
 升级 KCC 版本时记得同步修改工作流里的 `ref` 标签、产物文件名和
 `strings_zh.json` 里的 `kcc_version`。
 
