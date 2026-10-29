@@ -1,5 +1,5 @@
 {
-  "kcc_version": "12.1.1",
+  "kcc_version": "12.1.3",
   "strings": {
     "kindlecomicconverter/KCC_ui.py": {
       "<html><head/><body><p>After calculating the cropping boundaries, &quot;back up&quot; a specified percentage amount.</p></body></html>": "<html><head/><body><p>计算出裁剪边界后，按指定百分比向外&quot;回退&quot;多保留一部分。</p></body></html>",
