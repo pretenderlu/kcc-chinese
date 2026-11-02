@@ -155,7 +155,7 @@
       "Cancel": "取消"
     },
     "kindlecomicconverter/KCC_gui.py": {
-      "KFX (Send to Kindle EPUB)": "KFX-Ready EPUB（供 Calibre 转换）",
+      "KFX (Send to Kindle EPUB)": "KFX EPUB（Send to Kindle 用）",
       "<b>Conversion interrupted.</b>": "<b>转换已中断。</b>",
       "Conversion interrupted.": "转换已中断。",
       "Attempting file fusion": "正在尝试文件合并",
