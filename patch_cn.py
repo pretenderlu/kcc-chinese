@@ -118,28 +118,56 @@ KFX_HOOK = '''        elif options.kfx:
 
 
 def inject_kfx(root):
-    """把 KFX 写入器（vendor_kfx/）拷入源码树，并在 makeBook 输出循环注入直出 KFX 分支。"""
+    """把 KFX 写入器（vendor_kfx/）拷入源码树，并注入直出 KFX 分支与相关提示文案。"""
     if not KFX_VENDOR_DIR.is_dir():
         print('  警告：vendor_kfx/ 不存在，KFX 直出注入跳过')
         return
     pkg = root / 'kindlecomicconverter'
     for name in KFX_VENDOR_FILES:
         shutil.copy2(KFX_VENDOR_DIR / name, pkg / name)
-    target = pkg / 'comic2ebook.py'
-    text = target.read_bytes().decode('utf-8')
-    if KFX_MARKER in text:
-        print('KFX 直出: 已注入过，跳过')
-        return
-    lines = text.splitlines(keepends=True)
-    for i, ln in enumerate(lines):
-        if ln.strip() == 'else:' and i + 1 < len(lines) and KFX_ANCHOR_NEXT in lines[i + 1]:
-            eol = '\r\n' if ln.endswith('\r\n') else '\n'
-            hook = KFX_HOOK.replace('\n', eol)
-            lines.insert(i, hook)
-            target.write_bytes(''.join(lines).encode('utf-8'))
-            print('KFX 直出: 已注入 kindlecomicconverter/comic2ebook.py')
-            return
-    print('  警告：KFX 直出注入锚点未找到，已跳过')
+
+    # (文件, 锚点下一行特征, 注入内容, 幂等标记)
+    hooks = [
+        # makeBook() tome 循环：EPUB 输出分支前插入 KFX 直出分支
+        (pkg / 'comic2ebook.py', KFX_ANCHOR_NEXT, KFX_HOOK, KFX_MARKER),
+        # makeBook() 进度条提示：KFX 时显示「生成 KFX 文件」而非「压缩 EPUB 文件」
+        (pkg / 'comic2ebook.py', '压缩 EPUB 文件',
+         '''        elif options.kfx:
+            # KCC_ZH_KFXGUI_A_BEGIN
+            GUI.progressBarTick.emit(f'{job_progress}生成 KFX 文件')
+            # KCC_ZH_KFXGUI_A_END
+''', 'KCC_ZH_KFXGUI_A_BEGIN'),
+        # KCC_gui.py 转换开始日志：KFX 时显示「生成 KFX 文件」
+        (pkg / 'KCC_gui.py', 'QT_TRANSLATE_NOOP(\'KCCGUI\', "创建 EPUB 文件"), \'info\', False',
+         '''            elif gui_current_format == 'KFX':
+                # KCC_ZH_KFXGUI_B_BEGIN
+                MW.addMessage.emit(QT_TRANSLATE_NOOP('KCCGUI', "生成 KFX 文件"), 'info', False)
+                GUI.progress.content = QCoreApplication.translate('KCCGUI', "生成 KFX 文件")
+                # KCC_ZH_KFXGUI_B_END
+''', 'KCC_ZH_KFXGUI_B_BEGIN'),
+        # KCC_gui.py 转换完成日志：KFX 时显示「生成 KFX 文件……完成！」
+        (pkg / 'KCC_gui.py', '"创建 EPUB 文件……<b>完成！</b>"',
+         '''                elif gui_current_format == 'KFX':
+                    # KCC_ZH_KFXGUI_C_BEGIN
+                    MW.addMessage.emit(QT_TRANSLATE_NOOP('KCCGUI', "生成 KFX 文件……<b>完成！</b>"), 'info', True)
+                    # KCC_ZH_KFXGUI_C_END
+''', 'KCC_ZH_KFXGUI_C_BEGIN'),
+    ]
+    for target, anchor_next, hook, marker in hooks:
+        text = target.read_bytes().decode('utf-8')
+        if marker in text:
+            print(f'KFX 直出: {target.name} 已注入过（{marker}），跳过')
+            continue
+        lines = text.splitlines(keepends=True)
+        for i, ln in enumerate(lines):
+            if ln.strip() == 'else:' and i + 1 < len(lines) and anchor_next in lines[i + 1]:
+                eol = '\r\n' if ln.endswith('\r\n') else '\n'
+                lines.insert(i, hook.replace('\n', eol))
+                target.write_bytes(''.join(lines).encode('utf-8'))
+                print(f'KFX 直出: 已注入 {target.name}（{marker}）')
+                break
+        else:
+            print(f'  警告：KFX 注入锚点未找到（{marker}），已跳过')
 
 
 def inject_branding(root):
