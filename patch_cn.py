@@ -96,6 +96,15 @@ KFX_HOOK = '''        elif options.kfx:
                 for _kfx_f in os_sorted(_kfx_files):
                     if getImageFileName(_kfx_f)[1] in IMAGE_TYPES:
                         _kfx_images.append(os.path.join(_kfx_root, _kfx_f))
+            # KFX 写入器只支持 JPEG/PNG，管线可能产出 GIF/WebP（kindle_azw3/forcewebp 等），统一兜底转 JPEG
+            for _kfx_i, _kfx_p in enumerate(_kfx_images):
+                _kfx_im = Image.open(_kfx_p)
+                if _kfx_im.format not in ('JPEG', 'PNG'):
+                    _kfx_im = _kfx_im.convert('RGB')
+                    _kfx_newp = os.path.splitext(_kfx_p)[0] + '-kfx.jpg'
+                    _kfx_im.save(_kfx_newp, 'JPEG', quality=92)
+                    _kfx_images[_kfx_i] = _kfx_newp
+                _kfx_im.close()
             if len(tomes) > 1:
                 filepath.append(getOutputFilename(source, options.output, '.kfx', ' ' + str(tomeNumber)))
             else:
