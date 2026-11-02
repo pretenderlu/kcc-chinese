@@ -79,9 +79,10 @@ KFX_VENDOR_FILES = ('kfx_writer.py', 'kpf_generator.py')
 KFX_MARKER = 'KCC_ZH_KFX_BEGIN'
 # 锚点：makeBook() 的 tome 循环中 EPUB 输出分支（else: 下一行含 Creating EPUB file）
 KFX_ANCHOR_NEXT = 'Creating EPUB file'
-KFX_HOOK = '''        elif options.kfx:
-            # KCC_ZH_KFX_BEGIN（汉化增强：直接生成 KFX，无需 Calibre / Kindle Previewer）
-            # 注意：上游在 checkOptions 里把 format 'KFX' 改写为 'EPUB' + options.kfx=True
+KFX_HOOK = '''        elif getattr(options, 'kfx_direct', False):
+            # KCC_ZH_KFX_BEGIN（汉化增强：伪格式 KFXD，直接生成 KFX，无需 Calibre / Kindle Previewer）
+            # 注意：上游在 checkOptions 里把 format 'KFX' 改写为 'EPUB' + options.kfx=True；
+            # 我们新增的 'KFXD' 同样改写为 'EPUB'，但额外置 kfx_direct=True 走直出分支
             print(f"{job_progress}生成 KFX 文件...")
             if GUI:
                 GUI.progressBarTick.emit(f'{job_progress}生成 KFX 文件')
@@ -131,39 +132,47 @@ def inject_kfx(root):
     for name in KFX_VENDOR_FILES:
         shutil.copy2(KFX_VENDOR_DIR / name, pkg / name)
 
-    # (文件, 锚点下一行特征, 注入内容, 幂等标记)
+    # (模式, 文件, 锚点, 注入内容, 幂等标记)
+    # 模式 before_else：在「else: + 下一行含锚点」前插入；after_line：在锚点行后插入；before_line：在锚点行前插入
     hooks = [
-        # checkOptions()：直出 KFX 不强制 195MB 分卷（该限制为 Calibre/Send-to-Kindle 链路设计，USB 侧载无此限制）
-        ('after_line', pkg / 'comic2ebook.py', 'options.kfx = True',
-         '''        # KCC_ZH_KFX_NOSPLIT_BEGIN 直出 KFX 不强制分卷：一个源文件对应一个 .kfx
-        options.targetsize = 0
-        options.batchsplit = 0
-        # KCC_ZH_KFX_NOSPLIT_END
-''', 'KCC_ZH_KFX_NOSPLIT_BEGIN'),
+        # checkOptions()：新增伪格式 KFXD（直出 KFX）。保留上游 'KFX' 原行为（KFX-ready EPUB + 195MB 分卷）
+        ('before_line', pkg / 'comic2ebook.py', '# Override profile data',
+         '''    # KCC_ZH_KFXD_BEGIN 汉化增强：伪格式 KFXD，直出 KFX（不强制分卷，USB 侧载无 200MB 限制）
+    if options.format == 'KFXD':
+        options.format = 'EPUB'
+        options.kfx = True
+        options.kfx_direct = True
+        options.panelview = False
+    # KCC_ZH_KFXD_END
+''', 'KCC_ZH_KFXD_BEGIN'),
         # makeBook() tome 循环：EPUB 输出分支前插入 KFX 直出分支
         ('before_else', pkg / 'comic2ebook.py', KFX_ANCHOR_NEXT, KFX_HOOK, KFX_MARKER),
-        # makeBook() 进度条提示：KFX 时显示「生成 KFX 文件」而非「压缩 EPUB 文件」
+        # makeBook() 进度条提示：KFXD 时显示「生成 KFX 文件」而非「压缩 EPUB 文件」
         ('before_else', pkg / 'comic2ebook.py', '压缩 EPUB 文件',
-         '''        elif options.kfx:
+         '''        elif getattr(options, 'kfx_direct', False):
             # KCC_ZH_KFXGUI_A_BEGIN
             GUI.progressBarTick.emit(f'{job_progress}生成 KFX 文件')
             # KCC_ZH_KFXGUI_A_END
 ''', 'KCC_ZH_KFXGUI_A_BEGIN'),
-        # KCC_gui.py 转换开始日志：KFX 时显示「生成 KFX 文件」
+        # KCC_gui.py 转换开始日志：KFXD 时显示「生成 KFX 文件」
         ('before_else', pkg / 'KCC_gui.py', 'QT_TRANSLATE_NOOP(\'KCCGUI\', "创建 EPUB 文件"), \'info\', False',
-         '''            elif gui_current_format == 'KFX':
+         '''            elif gui_current_format == 'KFXD':
                 # KCC_ZH_KFXGUI_B_BEGIN
                 MW.addMessage.emit(QT_TRANSLATE_NOOP('KCCGUI', "生成 KFX 文件"), 'info', False)
                 GUI.progress.content = QCoreApplication.translate('KCCGUI', "生成 KFX 文件")
                 # KCC_ZH_KFXGUI_B_END
 ''', 'KCC_ZH_KFXGUI_B_BEGIN'),
-        # KCC_gui.py 转换完成日志：KFX 时显示「生成 KFX 文件……完成！」
+        # KCC_gui.py 转换完成日志：KFXD 时显示「生成 KFX 文件……完成！」
         ('before_else', pkg / 'KCC_gui.py', '"创建 EPUB 文件……<b>完成！</b>"',
-         '''                elif gui_current_format == 'KFX':
+         '''                elif gui_current_format == 'KFXD':
                     # KCC_ZH_KFXGUI_C_BEGIN
                     MW.addMessage.emit(QT_TRANSLATE_NOOP('KCCGUI', "生成 KFX 文件……<b>完成！</b>"), 'info', True)
                     # KCC_ZH_KFXGUI_C_END
 ''', 'KCC_ZH_KFXGUI_C_BEGIN'),
+        # KCC_gui.py 格式下拉框：新增「KFX（直接生成）」条目（伪格式 KFXD）
+        ('after_line', pkg / 'KCC_gui.py', "'format': 'KFX'},",
+         '''            "KFX（直接生成 · 无需 Calibre）": {'icon': 'KFX', 'format': 'KFXD'},  # KCC_ZH_KFXD_FMT
+''', 'KCC_ZH_KFXD_FMT'),
     ]
     for mode, target, anchor, hook, marker in hooks:
         text = target.read_bytes().decode('utf-8')
@@ -173,9 +182,14 @@ def inject_kfx(root):
         lines = text.splitlines(keepends=True)
         done = False
         for i, ln in enumerate(lines):
-            if mode == 'after_line' and ln.strip() == anchor:
+            if mode == 'after_line' and anchor in ln:
                 eol = '\r\n' if ln.endswith('\r\n') else '\n'
                 lines.insert(i + 1, hook.replace('\n', eol))
+                done = True
+                break
+            if mode == 'before_line' and ln.strip() == anchor:
+                eol = '\r\n' if ln.endswith('\r\n') else '\n'
+                lines.insert(i, hook.replace('\n', eol))
                 done = True
                 break
             if mode == 'before_else' and ln.strip() == 'else:' and i + 1 < len(lines) and anchor in lines[i + 1]:
