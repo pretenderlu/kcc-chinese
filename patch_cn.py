@@ -118,7 +118,8 @@ KFX_HOOK = '''        elif getattr(options, 'kfx_direct', False):
             _kfxw.generate_kfx(_kfx_images, filepath[-1], title=options.title,
                                author=options.authors[0] if options.authors else '',
                                reading_direction='rtl' if options.righttoleft else 'ltr',
-                               language=options.language)
+                               language=options.language,
+                               facing_pages=True, facing_start='single')  # 对应 EPUB 的 page-spread 元数据：横屏双页并排
             # KCC_ZH_KFX_END
 '''
 
