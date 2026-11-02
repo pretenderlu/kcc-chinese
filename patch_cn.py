@@ -118,8 +118,7 @@ KFX_HOOK = '''        elif getattr(options, 'kfx_direct', False):
             _kfxw.generate_kfx(_kfx_images, filepath[-1], title=options.title,
                                author=options.authors[0] if options.authors else '',
                                reading_direction='rtl' if options.righttoleft else 'ltr',
-                               language=options.language,
-                               facing_pages=True, facing_start='single')  # 对应 EPUB 的 page-spread 元数据：横屏双页并排
+                               language=options.language)
             # KCC_ZH_KFX_END
 '''
 
@@ -146,6 +145,13 @@ def inject_kfx(root):
         options.panelview = False
     # KCC_ZH_KFXD_END
 ''', 'KCC_ZH_KFXD_BEGIN'),
+        # Scribe 2480 支持：kindle_scribe_azw3 赋值之后，KFXD 直出不经过 kindlegen（无 1920 限高），禁用上下半页切分
+        ('after_line', pkg / 'comic2ebook.py', "options.kindle_scribe_azw3 = options.profile.startswith('KS') and options.kindle_azw3",
+         '''    if getattr(options, 'kfx_direct', False):
+        # KCC_ZH_KFXD_2480_BEGIN KFX 直出不依赖 kindlegen，整页 2480 全高直接写入，无需 above/below 切分
+        options.kindle_scribe_azw3 = False
+        # KCC_ZH_KFXD_2480_END
+''', 'KCC_ZH_KFXD_2480_BEGIN'),
         # makeBook() tome 循环：EPUB 输出分支前插入 KFX 直出分支
         ('before_else', pkg / 'comic2ebook.py', KFX_ANCHOR_NEXT, KFX_HOOK, KFX_MARKER),
         # makeBook() 进度条提示：KFXD 时显示「生成 KFX 文件」而非「压缩 EPUB 文件」
