@@ -40,6 +40,10 @@ python patch_cn.py --force     # KCC 版本与补丁不一致时强制执行（�
 - `patch_cn.py` — 补丁脚本
 - `strings_zh.json` — 英中对照表（`strings` 为整串精确匹配，`fstrings` 为 f-string 片段匹配）
 - `KCC_demo.py` — 悬停动画演示浮层（打补丁时自动注入源码树；不需要该功能可删除此文件后再打补丁）
+- `vendor_kfx/` — KFX 直出写入器（来自 [HankunYu/kindle-comic-workaround-5.19.x](https://github.com/HankunYu/kindle-comic-workaround-5.19.x)，MIT）。
+  打补丁时自动拷入源码树并在 `comic2ebook.py` 输出循环注入 `elif options.kfx:` 分支：
+  选择 KFX 格式时**直接生成 `.kfx` 文件**，无需 Calibre / Kindle Previewer，
+  可解决 Kindle 固件 5.19.x 侧载漫画的白边/空白页问题。`--no-demo` 纯汉化模式不注入该功能。
 
 ## 打包汉化版 exe
 

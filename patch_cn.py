@@ -72,6 +72,67 @@ BRAND_HOOK = '''
 '''
 
 
+# KFX 直接生成（汉化增强）注入配置
+# 写入器来源：HankunYu/kindle-comic-workaround-5.19.x v1.3.1（MIT，见 vendor_kfx/README.md）
+KFX_VENDOR_DIR = SCRIPT_DIR / 'vendor_kfx'
+KFX_VENDOR_FILES = ('kfx_writer.py', 'kpf_generator.py')
+KFX_MARKER = 'KCC_ZH_KFX_BEGIN'
+# 锚点：makeBook() 的 tome 循环中 EPUB 输出分支（else: 下一行含 Creating EPUB file）
+KFX_ANCHOR_NEXT = 'Creating EPUB file'
+KFX_HOOK = '''        elif options.kfx:
+            # KCC_ZH_KFX_BEGIN（汉化增强：直接生成 KFX，无需 Calibre / Kindle Previewer）
+            # 注意：上游在 checkOptions 里把 format 'KFX' 改写为 'EPUB' + options.kfx=True
+            print(f"{job_progress}生成 KFX 文件...")
+            if GUI:
+                GUI.progressBarTick.emit(f'{job_progress}生成 KFX 文件')
+            from . import kpf_generator as _kpfg
+            sys.modules.setdefault('kpf_generator', _kpfg)  # kfx_writer 用的是扁平绝对导入
+            from . import kfx_writer as _kfxw
+            if cover and (cover.smartcover or options.customcover):
+                cover.save_to_folder(os.path.join(tome, 'OEBPS', 'Images', '##cover.jpg'), tomeNumber, len(tomes))
+            _kfx_images = []
+            for _kfx_root, _kfx_dirs, _kfx_files in os.walk(os.path.join(tome, 'OEBPS', 'Images')):
+                _kfx_dirs[:] = os_sorted(_kfx_dirs)
+                for _kfx_f in os_sorted(_kfx_files):
+                    if getImageFileName(_kfx_f)[1] in IMAGE_TYPES:
+                        _kfx_images.append(os.path.join(_kfx_root, _kfx_f))
+            if len(tomes) > 1:
+                filepath.append(getOutputFilename(source, options.output, '.kfx', ' ' + str(tomeNumber)))
+            else:
+                filepath.append(getOutputFilename(source, options.output, '.kfx', ''))
+            _kfxw.generate_kfx(_kfx_images, filepath[-1], title=options.title,
+                               author=options.authors[0] if options.authors else '',
+                               reading_direction='rtl' if options.righttoleft else 'ltr',
+                               language=options.language)
+            # KCC_ZH_KFX_END
+'''
+
+
+def inject_kfx(root):
+    """把 KFX 写入器（vendor_kfx/）拷入源码树，并在 makeBook 输出循环注入直出 KFX 分支。"""
+    if not KFX_VENDOR_DIR.is_dir():
+        print('  警告：vendor_kfx/ 不存在，KFX 直出注入跳过')
+        return
+    pkg = root / 'kindlecomicconverter'
+    for name in KFX_VENDOR_FILES:
+        shutil.copy2(KFX_VENDOR_DIR / name, pkg / name)
+    target = pkg / 'comic2ebook.py'
+    text = target.read_bytes().decode('utf-8')
+    if KFX_MARKER in text:
+        print('KFX 直出: 已注入过，跳过')
+        return
+    lines = text.splitlines(keepends=True)
+    for i, ln in enumerate(lines):
+        if ln.strip() == 'else:' and i + 1 < len(lines) and KFX_ANCHOR_NEXT in lines[i + 1]:
+            eol = '\r\n' if ln.endswith('\r\n') else '\n'
+            hook = KFX_HOOK.replace('\n', eol)
+            lines.insert(i, hook)
+            target.write_bytes(''.join(lines).encode('utf-8'))
+            print('KFX 直出: 已注入 kindlecomicconverter/comic2ebook.py')
+            return
+    print('  警告：KFX 直出注入锚点未找到，已跳过')
+
+
 def inject_branding(root):
     """在 KCCGUI 初始化末尾注入汉化版标识（标题后缀 + 仓库链接按钮）。"""
     gui_file = root / 'kindlecomicconverter' / 'KCC_gui.py'
@@ -228,6 +289,11 @@ def main():
         if demo.exists():
             demo.unlink()
             print('已删除: kindlecomicconverter/KCC_demo.py')
+        for name in KFX_VENDOR_FILES:
+            vend = root / 'kindlecomicconverter' / name
+            if vend.exists():
+                vend.unlink()
+                print(f'已删除: kindlecomicconverter/{name}')
         if restored:
             print(f'完成，共还原 {restored} 个文件。')
         else:
@@ -269,9 +335,10 @@ def main():
 
     print(f'\n完成，共替换 {total} 处。')
     if args.no_demo:
-        print('纯汉化版：跳过悬停动画演示注入。')
+        print('纯汉化版：跳过悬停动画演示与 KFX 直出注入。')
     else:
         inject_demo(root)
+        inject_kfx(root)
     inject_branding(root)
     if total:
         print('如需还原英文原版：python patch_cn.py --restore')
