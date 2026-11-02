@@ -133,17 +133,24 @@ def inject_kfx(root):
 
     # (文件, 锚点下一行特征, 注入内容, 幂等标记)
     hooks = [
+        # checkOptions()：直出 KFX 不强制 195MB 分卷（该限制为 Calibre/Send-to-Kindle 链路设计，USB 侧载无此限制）
+        ('after_line', pkg / 'comic2ebook.py', 'options.kfx = True',
+         '''        # KCC_ZH_KFX_NOSPLIT_BEGIN 直出 KFX 不强制分卷：一个源文件对应一个 .kfx
+        options.targetsize = 0
+        options.batchsplit = 0
+        # KCC_ZH_KFX_NOSPLIT_END
+''', 'KCC_ZH_KFX_NOSPLIT_BEGIN'),
         # makeBook() tome 循环：EPUB 输出分支前插入 KFX 直出分支
-        (pkg / 'comic2ebook.py', KFX_ANCHOR_NEXT, KFX_HOOK, KFX_MARKER),
+        ('before_else', pkg / 'comic2ebook.py', KFX_ANCHOR_NEXT, KFX_HOOK, KFX_MARKER),
         # makeBook() 进度条提示：KFX 时显示「生成 KFX 文件」而非「压缩 EPUB 文件」
-        (pkg / 'comic2ebook.py', '压缩 EPUB 文件',
+        ('before_else', pkg / 'comic2ebook.py', '压缩 EPUB 文件',
          '''        elif options.kfx:
             # KCC_ZH_KFXGUI_A_BEGIN
             GUI.progressBarTick.emit(f'{job_progress}生成 KFX 文件')
             # KCC_ZH_KFXGUI_A_END
 ''', 'KCC_ZH_KFXGUI_A_BEGIN'),
         # KCC_gui.py 转换开始日志：KFX 时显示「生成 KFX 文件」
-        (pkg / 'KCC_gui.py', 'QT_TRANSLATE_NOOP(\'KCCGUI\', "创建 EPUB 文件"), \'info\', False',
+        ('before_else', pkg / 'KCC_gui.py', 'QT_TRANSLATE_NOOP(\'KCCGUI\', "创建 EPUB 文件"), \'info\', False',
          '''            elif gui_current_format == 'KFX':
                 # KCC_ZH_KFXGUI_B_BEGIN
                 MW.addMessage.emit(QT_TRANSLATE_NOOP('KCCGUI', "生成 KFX 文件"), 'info', False)
@@ -151,26 +158,34 @@ def inject_kfx(root):
                 # KCC_ZH_KFXGUI_B_END
 ''', 'KCC_ZH_KFXGUI_B_BEGIN'),
         # KCC_gui.py 转换完成日志：KFX 时显示「生成 KFX 文件……完成！」
-        (pkg / 'KCC_gui.py', '"创建 EPUB 文件……<b>完成！</b>"',
+        ('before_else', pkg / 'KCC_gui.py', '"创建 EPUB 文件……<b>完成！</b>"',
          '''                elif gui_current_format == 'KFX':
                     # KCC_ZH_KFXGUI_C_BEGIN
                     MW.addMessage.emit(QT_TRANSLATE_NOOP('KCCGUI', "生成 KFX 文件……<b>完成！</b>"), 'info', True)
                     # KCC_ZH_KFXGUI_C_END
 ''', 'KCC_ZH_KFXGUI_C_BEGIN'),
     ]
-    for target, anchor_next, hook, marker in hooks:
+    for mode, target, anchor, hook, marker in hooks:
         text = target.read_bytes().decode('utf-8')
         if marker in text:
             print(f'KFX 直出: {target.name} 已注入过（{marker}），跳过')
             continue
         lines = text.splitlines(keepends=True)
+        done = False
         for i, ln in enumerate(lines):
-            if ln.strip() == 'else:' and i + 1 < len(lines) and anchor_next in lines[i + 1]:
+            if mode == 'after_line' and ln.strip() == anchor:
+                eol = '\r\n' if ln.endswith('\r\n') else '\n'
+                lines.insert(i + 1, hook.replace('\n', eol))
+                done = True
+                break
+            if mode == 'before_else' and ln.strip() == 'else:' and i + 1 < len(lines) and anchor in lines[i + 1]:
                 eol = '\r\n' if ln.endswith('\r\n') else '\n'
                 lines.insert(i, hook.replace('\n', eol))
-                target.write_bytes(''.join(lines).encode('utf-8'))
-                print(f'KFX 直出: 已注入 {target.name}（{marker}）')
+                done = True
                 break
+        if done:
+            target.write_bytes(''.join(lines).encode('utf-8'))
+            print(f'KFX 直出: 已注入 {target.name}（{marker}）')
         else:
             print(f'  警告：KFX 注入锚点未找到（{marker}），已跳过')
 
