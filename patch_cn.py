@@ -138,9 +138,11 @@ def inject_kfx(root):
         # checkOptions()：新增伪格式 KFXD（直出 KFX）。保留上游 'KFX' 原行为（KFX-ready EPUB + 195MB 分卷）
         ('before_line', pkg / 'comic2ebook.py', '# Override profile data',
          '''    # KCC_ZH_KFXD_BEGIN 汉化增强：伪格式 KFXD，直出 KFX（不强制分卷，USB 侧载无 200MB 限制）
+    # 注意：不设 options.kfx = True —— 该标志会触发 kfx_resolution 归一化（image.py 把全书统一 pad 成
+    # 「多数页」画布，跨页为主的书会把拆分后的竖版半页塞进横版画布），那是为 Calibre KFX 插件的均匀页
+    # 尺寸要求设计的；KFXD 直出时写入器本身支持混合页尺寸，走标准管线「跨页拆分 → 按机型分辨率适配」即可
     if options.format == 'KFXD':
         options.format = 'EPUB'
-        options.kfx = True
         options.kfx_direct = True
         options.panelview = False
     # KCC_ZH_KFXD_END
