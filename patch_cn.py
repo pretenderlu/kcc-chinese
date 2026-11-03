@@ -117,7 +117,8 @@ KFX_HOOK = '''        elif getattr(options, 'kfx_direct', False):
                 filepath.append(getOutputFilename(source, options.output, '.kfx', ''))
             _kfxw.generate_kfx(_kfx_images, filepath[-1], title=options.title,
                                author=options.authors[0] if options.authors else '',
-                               reading_direction='rtl' if options.righttoleft else 'ltr',
+                               # 与 EPUB 路径对齐：「反转方向」只翻转元数据阅读方向，不动拆分顺序
+                               reading_direction='rtl' if (options.righttoleft != options.invertdirection) else 'ltr',
                                language=options.language)
             # KCC_ZH_KFX_END
 '''
