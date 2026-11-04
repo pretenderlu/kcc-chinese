@@ -76,6 +76,11 @@ from kpf_generator import (
 # Application tag recorded in the container header (kfxgen_application_version)
 APP_VERSION = "kindle-comic-workaround"
 
+
+class KFXCancelled(Exception):
+    """Raised when the caller cancels serialization."""
+
+
 # Fragment-type / field symbol ids used only on the KFX side
 SYM_ION_SYMBOL_TABLE = 3      # $3   ($ion_symbol_table annotation)
 SYM_IMPORT_NAME = 4           # $4
@@ -274,7 +279,8 @@ def _kv(key: str, value: bytes) -> bytes:
 
 def _build_book_metadata(language: str, virtual_panels: str,
                          cover_resource_name: str, book_id: str,
-                         asin: str, asset_id: str) -> bytes:
+                         asin: str, asset_id: str,
+                         title: str = "", author: str = "") -> bytes:
     panels_value = 0 if virtual_panels != "off" else 1
     cap_category = ion_struct([
         (SYM_CATEGORY_NAME, ion_string("kindle_capability_metadata")),
@@ -284,19 +290,26 @@ def _build_book_metadata(language: str, virtual_panels: str,
         ])),
     ])
     # Entries sorted by key, matching the plugin's metadata writer
+    title_kvs = [
+        _kv("ASIN", ion_string(asin)),
+        _kv("asset_id", ion_string(asset_id)),
+    ]
+    if author:
+        title_kvs.append(_kv("author", ion_string(author)))
+    title_kvs.extend([
+        _kv("book_id", ion_string(book_id)),
+        _kv("cde_content_type", ion_string("PDOC")),
+        _kv("content_id", ion_string(asin)),
+        _kv("cover_image", ion_string(cover_resource_name)),
+        _kv("is_sample", ion_bool(False)),
+        _kv("language", ion_string(language)),
+        _kv("override_kindle_font", ion_bool(False)),
+    ])
+    if title:
+        title_kvs.append(_kv("title", ion_string(title)))
     title_category = ion_struct([
         (SYM_CATEGORY_NAME, ion_string("kindle_title_metadata")),
-        (SYM_METADATA, ion_list([
-            _kv("ASIN", ion_string(asin)),
-            _kv("asset_id", ion_string(asset_id)),
-            _kv("book_id", ion_string(book_id)),
-            _kv("cde_content_type", ion_string("PDOC")),
-            _kv("content_id", ion_string(asin)),
-            _kv("cover_image", ion_string(cover_resource_name)),
-            _kv("is_sample", ion_bool(False)),
-            _kv("language", ion_string(language)),
-            _kv("override_kindle_font", ion_bool(False)),
-        ])),
+        (SYM_METADATA, ion_list(title_kvs)),
     ])
     ebook_category = ion_struct([
         (SYM_CATEGORY_NAME, ion_string("kindle_ebook_metadata")),
@@ -604,13 +617,13 @@ def _build_doc_symbol_table(syms: _LocalSymbols) -> bytes:
 # Container serialization
 # ===========================================================================
 
-def _enty(payload: bytes) -> bytes:
-    """Wrap an entity payload with the ENTY header."""
+def _enty_prefix() -> bytes:
+    """ENTY header shared by every entity (payload is streamed separately)."""
     info = _ION_BVM + ion_struct([
         (SYM_COMPRESSION_TYPE, ion_int(0)),
         (SYM_DRM_SCHEME, ion_int(0)),
     ])
-    return b"ENTY" + struct.pack("<HL", 1, 10 + len(info)) + info + payload
+    return b"ENTY" + struct.pack("<HL", 1, 10 + len(info)) + info
 
 
 def _kfxgen_info_json(app_version: str, payload_sha1: str,
@@ -624,21 +637,44 @@ def _kfxgen_info_json(app_version: str, payload_sha1: str,
             % (app_version, payload_sha1, container_id)).encode("ascii")
 
 
-def _serialize_container(entities: list[tuple[int, int, bytes]],
-                         doc_symbols: bytes, format_capabilities: bytes,
-                         container_id: str) -> bytes:
-    """Assemble the CONT container.
+def _consume_payload(payload, write, cancel_check=None) -> None:
+    """Send an Ion payload or a raw media file to write() in bounded chunks."""
+    if cancel_check and cancel_check():
+        raise KFXCancelled()
+    if isinstance(payload, tuple):
+        path, _ = payload
+        with open(path, "rb") as source:
+            while True:
+                chunk = source.read(1024 * 1024)
+                if not chunk:
+                    break
+                write(chunk)
+                if cancel_check and cancel_check():
+                    raise KFXCancelled()
+    else:
+        write(payload)
 
-    entities: (id_sid, type_sid, payload) where payload already includes
-    the BVM for Ion fragments (raw media stays raw).
+
+def _serialize_container(entities: list[tuple[int, int, object]],
+                         doc_symbols: bytes, format_capabilities: bytes,
+                         container_id: str, output_path: str,
+                         cancel_check=None) -> None:
+    """Assemble CONT without retaining raw media bytes in memory.
+
+    entities: (id_sid, type_sid, payload). Ion payloads are bytes; raw media
+    payloads are (path, size) tuples and are streamed in both passes.
     """
     entity_table = bytearray()
-    entity_data = bytearray()
+    entity_data_size = 0
+    payload_hasher = hashlib.sha1()
     for id_sid, type_sid, payload in entities:
-        wrapped = _enty(payload)
-        entity_table += struct.pack("<LLQQ", id_sid, type_sid,
-                                    len(entity_data), len(wrapped))
-        entity_data += wrapped
+        prefix = _enty_prefix()
+        payload_size = payload[1] if isinstance(payload, tuple) else len(payload)
+        entity_table += struct.pack("<LLQQ", id_sid, type_sid, entity_data_size,
+                                    len(prefix) + payload_size)
+        payload_hasher.update(prefix)
+        _consume_payload(payload, payload_hasher.update, cancel_check)
+        entity_data_size += len(prefix) + payload_size
 
     header = bytearray(18)                      # fixed header, patched below
     index_tab_offset = len(header)
@@ -664,13 +700,24 @@ def _serialize_container(entities: list[tuple[int, int, bytes]],
 
     info_offset = len(header)
     header += container_info
-    payload_sha1 = hashlib.sha1(bytes(entity_data)).hexdigest()
-    header += _kfxgen_info_json(APP_VERSION, payload_sha1, container_id)
+    header += _kfxgen_info_json(APP_VERSION, payload_hasher.hexdigest(), container_id)
 
     struct.pack_into("<4sHL", header, 0, b"CONT", CONTAINER_VERSION, len(header))
     struct.pack_into("<LL", header, 10, info_offset, len(container_info))
 
-    return bytes(header) + bytes(entity_data)
+    output_dir = os.path.dirname(os.path.abspath(output_path))
+    fd, temp_path = tempfile.mkstemp(prefix=".kfx-", suffix=".tmp", dir=output_dir)
+    os.close(fd)
+    try:
+        with open(temp_path, "wb") as output:
+            output.write(header)
+            for _, _, payload in entities:
+                output.write(_enty_prefix())
+                _consume_payload(payload, output.write, cancel_check)
+        os.replace(temp_path, output_path)
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
 # ===========================================================================
@@ -684,16 +731,14 @@ def generate_kfx(image_paths: list[str], output_path: str, title: str = "",
                  gamma: float = DEFAULT_GAMMA,
                  toc: list[dict] | None = None,
                  book_id: str | None = None, asin: str | None = None,
-                 container_id: str | None = None) -> None:
+                 container_id: str | None = None,
+                 cancel_check=None) -> None:
     """Generate a single-container KFX file from a list of images.
 
-    Mirrors generate_kpf's interface. title/author are accepted for
-    interface parity; like the plugin conversion path, they are not
-    embedded (Calibre or the device library supplies display metadata).
-
-    toc is an optional table of contents: a tree of
-    {"title": str, "page": int, "children": [...]} where page is a
+    title and author are embedded in kindle_title_metadata. toc is an optional
+    tree of {"title": str, "page": int, "children": [...]} where page is a
     0-based index into image_paths (see mobi_images.read_mobi_toc).
+    cancel_check may return True to abort serialization with KFXCancelled.
 
     The book_id/asin/container_id overrides exist for reproducible tests.
     """
@@ -704,24 +749,26 @@ def generate_kfx(image_paths: list[str], output_path: str, title: str = "",
         gamma_dir = tempfile.mkdtemp(prefix="kfx-gamma-")
         try:
             corrected = gamma_correct_batch(image_paths, gamma, gamma_dir)
-            _generate_kfx_impl(corrected, output_path, reading_direction,
-                               language, virtual_panels, facing_pages,
-                               facing_start, toc, book_id, asin,
-                               container_id)
+            _generate_kfx_impl(corrected, output_path, title, author,
+                               reading_direction, language, virtual_panels,
+                               facing_pages, facing_start, toc, book_id, asin,
+                               container_id, cancel_check)
         finally:
             shutil.rmtree(gamma_dir, ignore_errors=True)
     else:
-        _generate_kfx_impl(image_paths, output_path, reading_direction,
-                           language, virtual_panels, facing_pages,
-                           facing_start, toc, book_id, asin, container_id)
+        _generate_kfx_impl(image_paths, output_path, title, author,
+                           reading_direction, language, virtual_panels,
+                           facing_pages, facing_start, toc, book_id, asin,
+                           container_id, cancel_check)
 
 
 def _generate_kfx_impl(image_paths: list[str], output_path: str,
+                       title: str, author: str,
                        reading_direction: str, language: str,
                        virtual_panels: str, facing_pages: bool,
                        facing_start: str, toc: list[dict] | None,
                        book_id: str | None, asin: str | None,
-                       container_id: str | None) -> None:
+                       container_id: str | None, cancel_check=None) -> None:
     import uuid
 
     page_info = read_page_info(image_paths)
@@ -752,16 +799,17 @@ def _generate_kfx_impl(image_paths: list[str], output_path: str,
     cover_resource_name = sections[0]["images"][0]["resource_name"]
 
     # --- Build entities in the same order the plugin emits them ---
-    entities: list[tuple[int, int, bytes]] = []
+    entities: list[tuple[int, int, object]] = []
 
-    def add(id_sid: int, type_sid: int, value: bytes, raw: bool = False):
+    def add(id_sid: int, type_sid: int, value, raw: bool = False):
         entities.append((id_sid, type_sid, value if raw else _ION_BVM + value))
 
     add(SYM_SINGLETON, SYM_CONTENT_FEATURES_FRAG,
         _build_content_features(virtual_panels))
     add(SYM_SINGLETON, SYM_BOOK_METADATA_FRAG,
         _build_book_metadata(language, virtual_panels, cover_resource_name,
-                             book_id, asin, container_id))
+                             book_id, asin, container_id,
+                             title=title, author=author))
     add(SYM_SINGLETON, SYM_METADATA_FRAG, _build_metadata(syms, sections))
     add(SYM_SINGLETON, SYM_DOCUMENT_DATA_FRAG,
         _build_document_data(syms, sections, max_eid, reading_direction,
@@ -803,9 +851,8 @@ def _generate_kfx_impl(image_paths: list[str], output_path: str,
                                      pi["width"], pi["height"]))
 
     for img, pi in sorted(all_images, key=lambda x: x[0]["media_name"]):
-        with open(pi["path"], "rb") as f:
-            add(syms.sid(img["media_name"]), SYM_RAW_MEDIA, f.read(),
-                raw=True)
+        add(syms.sid(img["media_name"]), SYM_RAW_MEDIA,
+            (pi["path"], pi["size"]), raw=True)
 
     add(SYM_SINGLETON, SYM_CONTAINER_ENTITY_MAP,
         _build_container_entity_map(syms, sections, container_id))
@@ -814,10 +861,8 @@ def _generate_kfx_impl(image_paths: list[str], output_path: str,
     format_capabilities = _ION_BVM + ion_annotation(
         [SYM_FORMAT_CAPABILITIES], ion_list([]))
 
-    data = _serialize_container(entities, doc_symbols, format_capabilities,
-                                container_id)
-    with open(output_path, "wb") as f:
-        f.write(data)
+    _serialize_container(entities, doc_symbols, format_capabilities,
+                         container_id, output_path, cancel_check)
 
 
 # ===========================================================================

@@ -90,7 +90,7 @@
 - 旧版提取（legacyExtractBox → legacyextract）：直接抽取 PDF/EPUB
   内嵌原图（默认整页渲染），渲染出问题时可尝试
 
-调试：设置环境变量 KCC_DEMO_AUTO=spread|panel|manga|webtoon|crop|upscale|color|
+调试：设置环境变量 KCC_DEMO_AUTO=spread|panel|kfxpanel|manga|webtoon|crop|upscale|color|
 border|gamma|spreadshift|interpanel|autocontrast|norotate|v4panel|strips|
 rainbow|filefusion|imgformat|autolevel|chunksize|metatitle|noprocessing|
 deleteinput|outputsplit|rotatefirst|rotateright|smartcover|coverfill|
@@ -300,6 +300,10 @@ class DemoCanvas(QWidget):
             return [(5.2, self._sc_panel4),
                     (3.6, self._sc_panel2),
                     (5.2, self._sc_panel4hq)]
+        if self.demo == 'kfxpanel':
+            return [(2.8, self._sc_kfx_vp_off),
+                    (5.8, self._sc_kfx_vp_horizontal),
+                    (5.8, self._sc_kfx_vp_vertical)]
         if self.demo == 'manga':
             return [(4.2, self._sc_read_ltr),
                     (4.2, self._sc_read_rtl)]
@@ -666,6 +670,57 @@ class DemoCanvas(QWidget):
         self._panel_scene(p, t, self._quad_frames(self._page_rect()),
                           ['整页', '第 1 格 · 高清', '第 2 格 · 高清',
                            '第 3 格 · 高清', '第 4 格 · 高清'], hq=True)
+
+    # ================= KFX 虚拟面板 =================
+    # KFX 原生 Guided View：Kindle 自动检测格子；水平按行、垂直按列移动。
+    # 与 EPUB 的固定 4/2 区域及 HQ 图片放大不是同一机制。
+
+    def _kfx_vp_scene(self, p, t, frames, captions):
+        if t < 0.20:
+            page = self._page_rect()
+            draw_manga_page(p, page.toRect(), variant=2)
+            for i, frame in enumerate(frames):
+                alpha = _ease((t - i * 0.025) / 0.09)
+                if alpha <= 0:
+                    continue
+                fill = QColor(_ACCENT)
+                fill.setAlpha(int(28 * alpha))
+                edge = QColor(_ACCENT)
+                edge.setAlpha(int(230 * alpha))
+                p.setPen(QPen(edge, 1.6))
+                p.setBrush(fill)
+                p.drawRoundedRect(frame, 3, 3)
+                badge = QRectF(frame.left() + 3, frame.top() + 3, 15, 15)
+                p.setPen(Qt.NoPen)
+                p.setBrush(edge)
+                p.drawEllipse(badge)
+                p.setPen(QColor(255, 255, 255, int(255 * alpha)))
+                f = p.font()
+                f.setPointSizeF(8)
+                f.setBold(True)
+                p.setFont(f)
+                p.drawText(badge, Qt.AlignCenter, str(i + 1))
+            self._caption(p, 'Kindle 自动检测漫画格子……', _ACCENT, True)
+        else:
+            self._panel_scene(p, (t - 0.20) / 0.80, frames, captions)
+
+    def _sc_kfx_vp_off(self, p, t):
+        """不勾选：关闭虚拟面板，整页阅读。"""
+        draw_manga_page(p, self._page_rect().toRect(), variant=2)
+        self._caption(p, '关闭：整页阅读，不逐格放大')
+
+    def _sc_kfx_vp_horizontal(self, p, t):
+        """半勾选：水平虚拟面板，按横行逐格移动。"""
+        self._kfx_vp_scene(p, t, self._quad_frames(self._page_rect()),
+                           ['整页', '第 1 格 · 向右', '第 2 格 · 向右',
+                            '第 3 格 · 换到下一行', '第 4 格 · 向右'])
+
+    def _sc_kfx_vp_vertical(self, p, t):
+        """勾选：垂直虚拟面板，按竖列逐格移动。"""
+        frames = self._quad_frames(self._page_rect())
+        self._kfx_vp_scene(p, t, [frames[0], frames[2], frames[1], frames[3]],
+                           ['整页', '第 1 格 · 向下', '第 2 格 · 向下',
+                            '第 3 格 · 换到下一列', '第 4 格 · 向下'])
 
     # ================= 从右向左 =================
     # 代码语义：righttoleft=True 时页面与分格按日漫顺序（右→左）排列
@@ -2865,7 +2920,7 @@ class DemoCard(QFrame):
 
 
 class _HoverFilter(QObject):
-    """转发目标控件的 Enter/Leave 事件。"""
+    """跟随 Qt 原生提示的悬停延迟展示动画，并在离开时关闭。"""
 
     def __init__(self, manager, key, parent):
         super().__init__(parent)
@@ -2875,7 +2930,7 @@ class _HoverFilter(QObject):
 
     def eventFilter(self, obj, event):
         t = event.type()
-        if t == QEvent.Enter:
+        if t == QEvent.ToolTip:
             self._manager.show(self._key, obj)
         elif t == QEvent.Leave:
             self._manager.hide_soon()
@@ -2939,7 +2994,7 @@ class _DemoManager:
         self._hide_timer.timeout.connect(self._do_hide)
 
     def show(self, key, widget):
-        title, subtitle, demo = _SPECS[key]
+        title, subtitle, demo = widget.property('kcc_demo_spec') or _SPECS[key]
         if self._card is None:
             self._card = DemoCard()
         self._hide_timer.stop()
@@ -2978,7 +3033,8 @@ def install_demos(gui):
 
     auto = os.environ.get('KCC_DEMO_AUTO', '').strip()
     if auto:
-        key = {'spread': 'rotateBox', 'panel': 'qualityBox', 'manga': 'mangaBox',
+        key = {'spread': 'rotateBox', 'panel': 'qualityBox', 'kfxpanel': 'qualityBox',
+               'manga': 'mangaBox',
                'webtoon': 'webtoonBox', 'crop': 'croppingBox',
                'upscale': 'upscaleBox', 'color': 'colorBox',
                'border': 'borderBox', 'gamma': 'gammaBox',
@@ -3008,4 +3064,8 @@ def install_demos(gui):
                'legacyextract': 'legacyExtractBox'}.get(auto)
         widget = getattr(gui, key, None) if key else None
         if widget is not None:
+            if auto == 'kfxpanel':
+                widget.setProperty('kcc_demo_spec', (
+                    'KFX 虚拟面板 · 动画演示',
+                    'Kindle 自动检测格子：关闭 / 水平按行 / 垂直按列', 'kfxpanel'))
             QTimer.singleShot(1200, lambda: manager.show(key, widget))

@@ -97,8 +97,43 @@ KFX_HOOK = '''        elif getattr(options, 'kfx_direct', False):
                 for _kfx_f in os_sorted(_kfx_files):
                     if getImageFileName(_kfx_f)[1] in IMAGE_TYPES:
                         _kfx_images.append(os.path.join(_kfx_root, _kfx_f))
-            # KFX 写入器只支持 JPEG/PNG，管线可能产出 GIF/WebP（kindle_azw3/forcewebp 等），
-            # 兜底转换时尊重用户的「PNG 输出」选择：勾选转 PNG（无损），否则转 JPEG
+            _kfx_source_images = list(_kfx_images)  # 格式兜底前固定页面顺序，供目录定位
+
+            # 与 EPUB 一致：单卷优先使用 ComicInfo 书签，并按跨页拆分后的页码重新定位
+            _kfx_toc = []
+            if options.comicinfo_chapters and len(tomes) == 1:
+                _kfx_bookmark_images = [p for p in _kfx_source_images
+                                        if os.path.basename(p) != '##cover.jpg']
+                _kfx_page_indices = {p: i for i, p in enumerate(_kfx_source_images)}
+                global_diff = 0
+                diff_delta = 1 if options.splitter == 0 else (2 if options.splitter == 2 else 0)
+                for aChapter in options.comicinfo_chapters:
+                    pageid = aChapter[0]
+                    cur_diff = global_diff
+                    global_diff = 0
+                    for x in range(0, pageid + cur_diff + 1):
+                        if '-kcc-b' in os.path.basename(_kfx_bookmark_images[x]):
+                            pageid += diff_delta
+                            global_diff += diff_delta
+                    _kfx_path = _kfx_bookmark_images[pageid]
+                    _kfx_toc.append({'title': aChapter[1],
+                                     'page': _kfx_page_indices[_kfx_path], 'children': []})
+            else:
+                # 普通章节目录：每个目录的第一页作为一个目录项，根目录不单独命名
+                _kfx_seen_dirs = set()
+                for _kfx_i, _kfx_p in enumerate(_kfx_source_images):
+                    _kfx_parent = os.path.dirname(_kfx_p)
+                    if _kfx_parent in _kfx_seen_dirs:
+                        continue
+                    _kfx_seen_dirs.add(_kfx_parent)
+                    _kfx_name = os.path.basename(_kfx_parent)
+                    if _kfx_name in ('Images', 'Text'):
+                        continue
+                    _kfx_toc.append({'title': chapterNames.get(_kfx_name, _kfx_name),
+                                     'page': _kfx_i, 'children': []})
+
+            # 写入器只支持 JPEG/PNG；禁用处理或旧版提取可能保留 GIF/WebP。
+            # 兜底转换尊重 PNG 选择，JPEG 则沿用用户设置的质量。
             for _kfx_i, _kfx_p in enumerate(_kfx_images):
                 _kfx_im = Image.open(_kfx_p)
                 if _kfx_im.format not in ('JPEG', 'PNG'):
@@ -108,18 +143,23 @@ KFX_HOOK = '''        elif getattr(options, 'kfx_direct', False):
                     else:
                         _kfx_im = _kfx_im.convert('RGB')
                         _kfx_newp = os.path.splitext(_kfx_p)[0] + '-kfx.jpg'
-                        _kfx_im.save(_kfx_newp, 'JPEG', quality=92)
+                        _kfx_im.save(_kfx_newp, 'JPEG', quality=options.jpegquality)
                     _kfx_images[_kfx_i] = _kfx_newp
                 _kfx_im.close()
             if len(tomes) > 1:
                 filepath.append(getOutputFilename(source, options.output, '.kfx', ' ' + str(tomeNumber)))
             else:
                 filepath.append(getOutputFilename(source, options.output, '.kfx', ''))
-            _kfxw.generate_kfx(_kfx_images, filepath[-1], title=options.title,
-                               author=options.authors[0] if options.authors else '',
-                               # 与 EPUB 路径对齐：「反转方向」只翻转元数据阅读方向，不动拆分顺序
-                               reading_direction='rtl' if (options.righttoleft != options.invertdirection) else 'ltr',
-                               language=options.language)
+            try:
+                _kfxw.generate_kfx(_kfx_images, filepath[-1], title=options.title,
+                                   author=', '.join(options.authors),
+                                   # 与 EPUB 路径对齐：「反转方向」只翻转元数据阅读方向，不动拆分顺序
+                                   reading_direction='rtl' if (options.righttoleft != options.invertdirection) else 'ltr',
+                                   language=options.language, toc=_kfx_toc,
+                                   virtual_panels=options.virtual_panels,
+                                   cancel_check=lambda: bool(GUI and not GUI.conversionAlive))
+            except _kfxw.KFXCancelled:
+                raise UserWarning(QCoreApplication.translate('KCCGUI', 'Conversion interrupted.'))
             # KCC_ZH_KFX_END
 '''
 
@@ -134,25 +174,60 @@ def inject_kfx(root):
         shutil.copy2(KFX_VENDOR_DIR / name, pkg / name)
 
     # (模式, 文件, 锚点, 注入内容, 幂等标记)
-    # 模式 before_else：在「else: + 下一行含锚点」前插入；after_line：在锚点行后插入；before_line：在锚点行前插入
+    # 模式：before_else 在 else 前插入；after_line 在锚点后插入；before_line 在锚点前插入；replace_line 替换锚点所在行
     hooks = [
+        # CLI：KFXD 原生虚拟面板参数
+        ('before_line', pkg / 'comic2ebook.py', 'main_options.add_argument("-w", "--webtoon", action="store_true", dest="webtoon", default=False,',
+         '''    main_options.add_argument('--virtual-panels', choices=('off', 'horizontal', 'vertical'), default=None,
+                              help='KFX direct virtual panel navigation [Default=off]')  # KCC_ZH_KFXD_VP_CLI
+''', 'KCC_ZH_KFXD_VP_CLI'),
+        # GUI：三态复选框映射为关闭 / 水平 / 垂直（与 EPUB 的 4/2/高清无关）
+        ('before_line', pkg / 'KCC_gui.py', 'if GUI.legacyPanelViewBox.isChecked():',
+         '''    # KCC_ZH_KFXD_VP_GUI
+    options.virtual_panels = 'off'
+    if GUI.qualityBox.checkState() == Qt.CheckState.PartiallyChecked:
+        options.virtual_panels = 'horizontal'
+    elif GUI.qualityBox.checkState() == Qt.CheckState.Checked:
+        options.virtual_panels = 'vertical'
+''', 'KCC_ZH_KFXD_VP_GUI'),
         # checkOptions()：新增伪格式 KFXD（直出 KFX）。保留上游 'KFX' 原行为（KFX-ready EPUB + 195MB 分卷）
         ('before_line', pkg / 'comic2ebook.py', '# Override profile data',
          '''    # KCC_ZH_KFXD_BEGIN 汉化增强：伪格式 KFXD，直出 KFX（不强制分卷，USB 侧载无 200MB 限制）
     # 注意：不设 options.kfx = True —— 该标志会触发 kfx_resolution 归一化（image.py 把全书统一 pad 成
     # 「多数页」画布，跨页为主的书会把拆分后的竖版半页塞进横版画布），那是为 Calibre KFX 插件的均匀页
     # 尺寸要求设计的；KFXD 直出时写入器本身支持混合页尺寸，走标准管线「跨页拆分 → 按机型分辨率适配」即可
+    options.kfx_direct = False
     if options.format == 'KFXD':
+        if options.lightnovel:
+            raise UserWarning(QCoreApplication.translate('KCCGUI', '轻小说模式只能输出 EPUB/CBZ，不能用于 KFX 直出。'))
+        if options.wallpaper:
+            raise UserWarning(QCoreApplication.translate('KCCGUI', '壁纸模式仅用于图像文件夹输出，不能用于 KFX 直出。'))
+        if options.profile in KF7_KINDLES:
+            raise UserWarning(QCoreApplication.translate('KCCGUI', '此设备不支持 KFX，请选择 CBZ 或其他输出格式。'))
         options.format = 'EPUB'
         options.kfx_direct = True
+        # KFX 原生虚拟面板与 EPUB 固定 4/2 区域不同：off / horizontal / vertical
+        options.virtual_panels = options.virtual_panels or 'off'
+        if options.webtoon:
+            options.virtual_panels = 'off'
+        # 这些选项目前只由 EPUB OPF/spine 或固定面板视图使用，避免在直出中无效或误放大图片
         options.panelview = False
+        options.hq = False
+        options.autoscale = False
+        options.legacypanelview = False
+        options.vertical4panel = False
+        options.spreadshift = False
+        options.onepagelandscape = False
+        options.webp = False
     # KCC_ZH_KFXD_END
 ''', 'KCC_ZH_KFXD_BEGIN'),
-        # Scribe 2480 支持：kindle_scribe_azw3 赋值之后，KFXD 直出不经过 kindlegen（无 1920 限高），禁用上下半页切分
-        ('after_line', pkg / 'comic2ebook.py', "options.kindle_scribe_azw3 = options.profile.startswith('KS') and options.kindle_azw3",
+        # KFXD 不经过 kindlegen：在派生选项全部赋值后，关闭 AZW3/Scribe 专属预处理与 WebP 中间格式
+        ('after_line', pkg / 'comic2ebook.py', "options.webp_output = options.format != 'PDF' and not options.kindle_azw3 and options.webp",
          '''    if getattr(options, 'kfx_direct', False):
-        # KCC_ZH_KFXD_2480_BEGIN KFX 直出不依赖 kindlegen，整页 2480 全高直接写入，无需 above/below 切分
+        # KCC_ZH_KFXD_2480_BEGIN 直出仅需通用图像处理：禁止 GIF 绕行、1920 限制、above/below 切分和 WebP 中间格式
+        options.kindle_azw3 = False
         options.kindle_scribe_azw3 = False
+        options.webp_output = False
         # KCC_ZH_KFXD_2480_END
 ''', 'KCC_ZH_KFXD_2480_BEGIN'),
         # makeBook() tome 循环：EPUB 输出分支前插入 KFX 直出分支
@@ -183,6 +258,41 @@ def inject_kfx(root):
         ('after_line', pkg / 'KCC_gui.py', "'format': 'KFX'},",
          '''            "KFX（直接生成 · 无需 Calibre）": {'icon': 'KFX', 'format': 'KFXD'},  # KCC_ZH_KFXD_FMT
 ''', 'KCC_ZH_KFXD_FMT'),
+        # KCC_gui.py 选择 KFXD 时清空并禁用不适用选项，切回其他格式时恢复
+        ('after_line', pkg / 'KCC_gui.py', 'GUI.outputSplit.setChecked(False)',
+         '''        # KCC_ZH_KFXGUI_D_BEGIN
+        _kfxd = GUI.formats[str(GUI.formatBox.currentText())]['format'] == 'KFXD'
+        if GUI.qualityBox.property('kcc_epub_text') is None:
+            GUI.qualityBox.setProperty('kcc_epub_text', GUI.qualityBox.text())
+            GUI.qualityBox.setProperty('kcc_epub_tooltip', GUI.qualityBox.toolTip())
+        for _name in ('lightnovelBox', 'wallpaperBox', 'webpBox',
+                      'legacyPanelViewBox', 'vertical4PanelBox', 'spreadShiftBox',
+                      'onePageLandscapeBox'):
+            _box = getattr(GUI, _name)
+            if _kfxd:
+                _box.setChecked(False)
+            _box.setEnabled(not _kfxd)
+        if _kfxd:
+            GUI.qualityBox.setText('KFX 虚拟面板')
+            GUI.qualityBox.setToolTip('不勾选 - 关闭\\n半勾选 - 水平\\n勾选 - 垂直\\n\\n由 Kindle 自动检测并引导放大面板，与 EPUB 固定 4/2 面板不同。')
+            GUI.qualityBox.setProperty('kcc_demo_spec', (
+                'KFX 虚拟面板 · 动画演示',
+                'Kindle 自动检测格子：关闭 / 水平按行 / 垂直按列', 'kfxpanel'))
+        else:
+            GUI.qualityBox.setText(GUI.qualityBox.property('kcc_epub_text'))
+            GUI.qualityBox.setToolTip(GUI.qualityBox.property('kcc_epub_tooltip'))
+            GUI.qualityBox.setProperty('kcc_demo_spec', None)
+        GUI.qualityBox.setEnabled((_kfxd or profile['PVOptions']) and not GUI.webtoonBox.isChecked())
+        # KCC_ZH_KFXGUI_D_END
+''', 'KCC_ZH_KFXGUI_D_BEGIN'),
+        # 通用分卷：首项即超限时保留在原卷，避免产生空首卷
+        ('replace_line', pkg / 'comic2ebook.py', 'if currentSize + size > targetSize:',
+         '''if currentSize + size > targetSize and currentSize > 0:  # KCC_ZH_CHUNK_NONEMPTY
+''', 'KCC_ZH_CHUNK_NONEMPTY'),
+        # CLI 帮助列出 KFXD
+        ('replace_line', pkg / 'comic2ebook.py', 'help="Output format (Available options: Auto, MOBI, EPUB, CBZ, KFX, MOBI+EPUB, PDF) "',
+         '''help="Output format (Available options: Auto, MOBI, EPUB, CBZ, KFX, KFXD, MOBI+EPUB, PDF) "  # KCC_ZH_KFXD_HELP
+''', 'KCC_ZH_KFXD_HELP'),
     ]
     for mode, target, anchor, hook, marker in hooks:
         text = target.read_bytes().decode('utf-8')
@@ -192,6 +302,12 @@ def inject_kfx(root):
         lines = text.splitlines(keepends=True)
         done = False
         for i, ln in enumerate(lines):
+            if mode == 'replace_line' and anchor in ln:
+                eol = '\r\n' if ln.endswith('\r\n') else '\n'
+                indent = ln[:len(ln) - len(ln.lstrip())]
+                lines[i] = indent + hook.replace('\n', eol)
+                done = True
+                break
             if mode == 'after_line' and anchor in ln:
                 eol = '\r\n' if ln.endswith('\r\n') else '\n'
                 lines.insert(i + 1, hook.replace('\n', eol))

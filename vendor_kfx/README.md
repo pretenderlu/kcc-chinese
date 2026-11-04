@@ -9,5 +9,10 @@
 - `kfx_writer.py` — KFX 单容器序列化器（入口 `generate_kfx()`)
 - `kpf_generator.py` — Kindle YJ fragment 结构生成器（被 kfx_writer 依赖）
 
-只依赖 Pillow 与标准库。文件保持上游原样未做修改，便于后续跟版对比。
-由 `patch_cn.py` 在打补丁时拷入 `kcc/kindlecomicconverter/` 并注入接线代码。
+只依赖 Pillow 与标准库，由 `patch_cn.py` 在打补丁时拷入 `kcc/kindlecomicconverter/` 并注入接线代码。
+
+汉化增强版在 v1.3.1 基础上对 `kfx_writer.py` 做了以下本地扩展（`kpf_generator.py` 保持原样）：
+
+- 写入标题、作者元数据
+- 流式序列化原始图片，避免整本书驻留内存
+- 支持通过 `cancel_check` 中断写入，并采用临时文件原子替换，避免留下半成品
