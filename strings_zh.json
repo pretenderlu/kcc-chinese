@@ -1,5 +1,5 @@
 {
-  "kcc_version": "12.1.5",
+  "kcc_version": "13.0.1",
   "strings": {
     "kindlecomicconverter/KCC_ui.py": {
       "<html><head/><body><p>After calculating the cropping boundaries, &quot;back up&quot; a specified percentage amount.</p></body></html>": "<html><head/><body><p>计算出裁剪边界后，按指定百分比向外&quot;回退&quot;多保留一部分。</p></body></html>",
@@ -49,8 +49,9 @@
       "Custom JPEG Quality": "自定义 JPEG 质量",
       "<html><head/><body><p>When the spread splitter option is partially checked,</p><p><span style=\" font-weight:600; text-decoration: underline;\">Unchecked - Rotate Last<br/></span>Put the rotated 2 page spread after the split spreads.</p><p><span style=\" font-weight:600; text-decoration: underline;\">Checked - Rotate First<br/></span>Put the rotated 2 page spread before the split spreads.</p></body></html>": "<html><head/><body><p>当跨页拆分选项为半勾选状态时：</p><p><span style=\" font-weight:600; text-decoration: underline;\">不勾选 - 最后旋转<br/></span>旋转后的双页跨页放在拆分页面之后。</p><p><span style=\" font-weight:600; text-decoration: underline;\">勾选 - 首先旋转<br/></span>旋转后的双页跨页放在拆分页面之前。</p></body></html>",
       "Rotate First": "首先旋转",
-      "<html><head/><body><p>Default Title</p></body></html>": "<html><head/><body><p>默认标题</p></body></html>",
-      "Default Title": "默认标题",
+      "For one item/fusion, sets the default title and filename.\n": "单个来源或文件合并时，设置默认标题和输出文件名。\n",
+      "For multiple files, will enumerate the titles and filenames, e.g. Series 01, Series 02, etc.": "处理多个文件时，会依次为标题和文件名编号，例如：系列 01、系列 02 等。",
+      "Default Title/Series": "默认标题/系列",
       "PDF Width Render": "PDF 宽度渲染",
       "Erase rainbow effect on color eink screen by attenuating interfering frequencies": "通过衰减干扰频率，消除彩色墨水屏上的彩虹纹。",
       "Rainbow eraser": "彩虹纹消除",
@@ -85,7 +86,7 @@
       "No rotate": "不旋转",
       "<html><head/><body><p style='white-space:pre'>Enable right-to-left reading.</p></body></html>": "<html><head/><body><p style='white-space:pre'>启用从右向左阅读。</p></body></html>",
       "Right-to-left (manga)": "从右向左（漫画）",
-      "<html><head/><body><p><span style=\" font-weight:600; text-decoration: underline;\">Unchecked - next to source<br/></span>Place output files next to source files</p><p><span style=\" font-weight:600; text-decoration: underline;\">Indeterminate - folder next to source<br/></span>Place output files in a folder next to source files</p><p><span style=\" font-weight:600; text-decoration: underline;\">Checked - Custom<br/></span>Place output files in custom directory specified by right button</p></body></html>": "<html><head/><body><p><span style=\" font-weight:600; text-decoration: underline;\">不勾选 - 源文件旁<br/></span>输出文件放在源文件旁边。</p><p><span style=\" font-weight:600; text-decoration: underline;\">半勾选 - 源文件旁的文件夹<br/></span>输出文件放在源文件旁边的文件夹中。</p><p><span style=\" font-weight:600; text-decoration: underline;\">勾选 - 自定义<br/></span>输出文件放在右侧按钮指定的自定义目录。</p></body></html>",
+      "<html><head/><body><p><span style=\" font-weight:600; text-decoration: underline;\">Unchecked - next to source<br/></span>Place output files next to source files</p><p><span style=\" font-weight:600; text-decoration: underline;\">Indeterminate - folder next to source<br/></span>Place output files in a folder next to source files</p><p><span style=\" font-weight:600; text-decoration: underline;\">Checked - Custom<br/></span>Place output files in custom directory specified by right button</p></body></html>": "<html><head/><body><p><span style=\" font-weight:600; text-decoration: underline;\">不勾选 - 源文件旁<br/></span>输出文件放在源文件旁边。</p><p><span style=\" font-weight:600; text-decoration: underline;\">半勾选 - 源文件旁的 [kcc] 文件夹<br/></span>在源文件所在目录下创建「目录名 [kcc]」文件夹存放输出。</p><p><span style=\" font-weight:600; text-decoration: underline;\">勾选 - 自定义目录下的 [kcc] 子文件夹<br/></span>在右侧按钮指定的目录下创建「目录名 [kcc]」子文件夹存放输出。</p></body></html>",
       "Output Folder": "输出目录",
       "<html><head/><body><p>Use this to select the default output directory.</p></body></html>": "<html><head/><body><p>用于选择默认输出目录。</p></body></html>",
       "<html><head/><body><p>By default, KCC maps the darkest pixel value to pure black (the black point.)</p><p>Extreme black point sets the black point to be the most common dark pixel value.</p><p>Useful when text is black but artwork is gray.</p></body></html>": "<html><head/><body><p>默认情况下，KCC 将最暗的像素值映射为纯黑（黑点）。</p><p>极限黑点会把黑点设为最常见的暗色像素值。</p><p>适用于文字为黑色但画面发灰的情况。</p></body></html>",
@@ -160,7 +161,6 @@
       "Conversion interrupted.": "转换已中断。",
       "Attempting file fusion": "正在尝试文件合并",
       "Fusion Failed. ": "合并失败。",
-      "Process Failed. Custom title can't be set when processing more than 1 source.\nDid you forget to check fusion?": "处理失败。处理多个来源时无法设置自定义标题。\n是否忘记勾选文件合并？",
       "Creating CBZ files": "创建 CBZ 文件",
       "Creating PDF files": "创建 PDF 文件",
       "Creating EPUB files": "创建 EPUB 文件",

@@ -1,7 +1,7 @@
 # KCC 一键汉化补丁
 
 对 [KCC (Kindle Comic Converter)](https://github.com/ciromattia/kcc) 的 GUI 界面进行汉化。
-基于 KCC **v12.0.0** 制作，共翻译 270 余处界面文本（按钮、选项、工具提示、状态消息、对话框）。
+基于 KCC **v13.0.1** 制作，共翻译 270 余处界面文本（按钮、选项、工具提示、状态消息、对话框）。
 
 ## 使用方法
 
@@ -55,13 +55,13 @@ python -m PyInstaller --clean -y kcc.spec
 # 产物：kcc/dist/kcc.exe
 ```
 
-本地构建产物按版本号归档在 `builds/<版本号>/`（如 `builds/v12.0.0/`），
+本地构建产物按版本号归档在 `builds/<版本号>/`（如 `builds/v13.0.1/`），
 该目录已加入 .gitignore，不会提交到仓库。每次跟版发布时，
 除 GitHub Actions 统一打包外，本地也应构建一份并存入对应版本目录。
 
 也可以用 GitHub Actions 自动打包：`.github/workflows/build.yml` 已配置好，
 推送到 GitHub 后在 Actions 页手动触发（workflow_dispatch）即可产出
-Windows 的 `KCC-v12.0.0-zh_CN-windows.exe` 和 macOS 的 dmg（arm64 / intel）。
+Windows 的 `KCC-v13.0.1-zh_CN-windows.exe` 和 macOS 的 dmg（arm64 / intel）。
 
 ### 发布线（打标签自动发布 Release）
 

@@ -289,6 +289,14 @@ def inject_kfx(root):
         ('replace_line', pkg / 'comic2ebook.py', 'if currentSize + size > targetSize:',
          '''if currentSize + size > targetSize and currentSize > 0:  # KCC_ZH_CHUNK_NONEMPTY
 ''', 'KCC_ZH_CHUNK_NONEMPTY'),
+        # v13 标题参与文件名后，分卷序号 [1/N] 和自定义标题中的分隔符不能落入子目录
+        ('before_line', pkg / 'comic2ebook.py', 'filename = os.path.join(abs_path, name + tomenumber + ext)',
+         '''    # KCC_ZH_SAFE_FILENAME
+    if os.name == 'nt':
+        name = re.sub(r'[\\/:*?"<>|]', '_', name)
+    else:
+        name = name.replace('/', '_')
+''', 'KCC_ZH_SAFE_FILENAME'),
         # CLI 帮助列出 KFXD
         ('replace_line', pkg / 'comic2ebook.py', 'help="Output format (Available options: Auto, MOBI, EPUB, CBZ, KFX, MOBI+EPUB, PDF) "',
          '''help="Output format (Available options: Auto, MOBI, EPUB, CBZ, KFX, KFXD, MOBI+EPUB, PDF) "  # KCC_ZH_KFXD_HELP
