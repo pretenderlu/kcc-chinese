@@ -60,7 +60,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-14          # Apple Silicon (arm64)
+          - os: macos-15          # Apple Silicon (arm64)；macos-14 runner 已退役
             arch: arm64
           - os: macos-15-intel    # Intel
             arch: intel
