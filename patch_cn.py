@@ -45,10 +45,11 @@ DEMO_HOOK = '''
         # KCC_ZH_DEMO_END
 '''
 
-# 汉化版标识（仓库信息）注入配置
+# 汉化版标识（仓库信息）与自动更新注入配置
 BRAND_MARKER = 'KCC_ZH_BRAND_BEGIN'
 BRAND_ANCHOR = 'MW.show()'         # KCCGUI.__init__ 末尾
 BRAND_REPO = 'https://github.com/pretenderlu/kcc-chinese'
+UPDATE_MODULE = SCRIPT_DIR / 'KCC_update.py'
 BRAND_HOOK = '''
         # KCC_ZH_BRAND_BEGIN（KCC 汉化版标识：标题后缀 + 状态栏仓库链接）
         try:
@@ -65,6 +66,8 @@ BRAND_HOOK = '''
             _zhBrand.clicked.connect(lambda: _zhQDS.openUrl(
                 _zhQUrl('https://github.com/pretenderlu/kcc-chinese')))
             MW.statusBar().addPermanentWidget(_zhBrand)
+            from . import KCC_update
+            KCC_update.install_updater(MW)
             MW.setWindowTitle(MW.windowTitle() + '（汉化增强版）')
         except Exception:
             pass
@@ -339,7 +342,9 @@ def inject_kfx(root):
 
 
 def inject_branding(root):
-    """在 KCCGUI 初始化末尾注入汉化版标识（标题后缀 + 仓库链接按钮）。"""
+    """在 KCCGUI 初始化末尾注入汉化版标识与 Release 自动更新提示。"""
+    if UPDATE_MODULE.exists():
+        shutil.copy2(UPDATE_MODULE, root / 'kindlecomicconverter' / 'KCC_update.py')
     gui_file = root / 'kindlecomicconverter' / 'KCC_gui.py'
     text = gui_file.read_bytes().decode('utf-8')
     if BRAND_MARKER in text:
@@ -494,6 +499,10 @@ def main():
         if demo.exists():
             demo.unlink()
             print('已删除: kindlecomicconverter/KCC_demo.py')
+        updater = root / 'kindlecomicconverter' / 'KCC_update.py'
+        if updater.exists():
+            updater.unlink()
+            print('已删除: kindlecomicconverter/KCC_update.py')
         for name in KFX_VENDOR_FILES:
             vend = root / 'kindlecomicconverter' / name
             if vend.exists():

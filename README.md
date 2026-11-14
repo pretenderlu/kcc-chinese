@@ -40,6 +40,7 @@ python patch_cn.py --force     # KCC 版本与补丁不一致时强制执行（�
 - `patch_cn.py` — 补丁脚本
 - `strings_zh.json` — 英中对照表（`strings` 为整串精确匹配，`fstrings` 为 f-string 片段匹配）
 - `KCC_demo.py` — 悬停动画演示浮层（打补丁时自动注入源码树；不需要该功能可删除此文件后再打补丁）
+- `KCC_update.py` — 后台检查汉化增强版 Release，状态栏绿点提示，查看更新说明并前往下载页
 - `vendor_kfx/` — KFX 直出写入器（来自 [HankunYu/kindle-comic-workaround-5.19.x](https://github.com/HankunYu/kindle-comic-workaround-5.19.x)，MIT）。
   打补丁时自动拷入源码树并注入伪格式 `KFXD`：格式下拉框新增「KFX（直接生成 · 无需 Calibre）」，选中后**直接生成 `.kfx` 文件**，
   无需 Calibre / Kindle Previewer，可解决 Kindle 固件 5.19.x 侧载漫画的白边/空白页问题。
@@ -90,6 +91,7 @@ Release 说明由固定模板生成，并自动附带对应上游版本的官方
 3. 脚本会列出"未找到字符串"的警告——这些是上游新增或改动过的文本，
    在 `strings_zh.json` 中更新对应条目后重新打补丁即可。
 4. 打 `vX.Y.Z-zh-enhanced` 标签推送，由 Actions 自动构建三平台产物并发布 Release。
+   若发布 `vX.Y.Z-zh-enhanced-fixN`，还需同步修改 `KCC_update.py` 的 `CURRENT_FIX = N`，避免当前版本重复提示更新。
 5. 本地构建一份 exe（见上文「打包汉化版 exe」），
    按版本号存入 `builds/<版本号>/` 归档。
 6. 发布完成后，把「上游更新内容」一节从英文原文翻译成中文，
