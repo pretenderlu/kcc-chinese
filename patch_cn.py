@@ -108,17 +108,8 @@ KFX_HOOK = '''        elif getattr(options, 'kfx_direct', False):
                 _kfx_bookmark_images = [p for p in _kfx_source_images
                                         if os.path.basename(p) != '##cover.jpg']
                 _kfx_page_indices = {p: i for i, p in enumerate(_kfx_source_images)}
-                global_diff = 0
-                diff_delta = 1 if options.splitter == 0 else (2 if options.splitter == 2 else 0)
                 for aChapter in options.comicinfo_chapters:
-                    pageid = aChapter[0]
-                    cur_diff = global_diff
-                    global_diff = 0
-                    for x in range(0, pageid + cur_diff + 1):
-                        if '-kcc-b' in os.path.basename(_kfx_bookmark_images[x]):
-                            pageid += diff_delta
-                            global_diff += diff_delta
-                    _kfx_path = _kfx_bookmark_images[pageid]
+                    _kfx_path = _kfx_bookmark_images[getBookmarkPageIndex(_kfx_bookmark_images, aChapter[0])]
                     _kfx_toc.append({'title': aChapter[1],
                                      'page': _kfx_page_indices[_kfx_path], 'children': []})
             else:
@@ -177,8 +168,31 @@ def inject_kfx(root):
         shutil.copy2(KFX_VENDOR_DIR / name, pkg / name)
 
     # (模式, 文件, 锚点, 注入内容, 幂等标记)
-    # 模式：before_else 在 else 前插入；after_line 在锚点后插入；before_line 在锚点前插入；replace_line 替换锚点所在行
+    # 模式：before_else 在 else 前插入；after_line 在锚点后插入；before_line 在锚点前插入；replace_line 替换一行；replace_block 替换起止锚点间内容
     hooks = [
+        # ComicInfo 书签：按原始页面分组定位，兼容拆分、旋转及 rotatefirst 顺序
+        ('before_line', pkg / 'comic2ebook.py', "def buildEPUB(path, chapternames, tomenumber, ischunked, cover: image.Cover, originalpath, job_progress='', len_tomes=0):",
+         '''def getBookmarkPageIndex(filelist, pageid):
+    """把 ComicInfo 的原始页码映射为处理后文件索引。"""
+    original_pages = []
+    previous = None
+    for i, entry in enumerate(filelist):
+        name = entry[1] if isinstance(entry, tuple) else entry
+        base = os.path.basename(name).split('-kcc-')[0]
+        if base != previous:
+            original_pages.append(i)
+            previous = base
+    if not original_pages:
+        return pageid
+    return original_pages[min(pageid, len(original_pages) - 1)]
+
+
+''', 'KCC_ZH_BOOKMARK_HELPER'),
+        ('replace_block', pkg / 'comic2ebook.py', ('diff_delta = 0', 'filename = filelist[pageid][1]'),
+         '''        for aChapter in options.comicinfo_chapters:
+            pageid = getBookmarkPageIndex(filelist, aChapter[0])
+            filename = filelist[pageid][1]  # KCC_ZH_BOOKMARK_GROUP
+''', 'KCC_ZH_BOOKMARK_GROUP'),
         # CLI：KFXD 原生虚拟面板参数
         ('before_line', pkg / 'comic2ebook.py', 'main_options.add_argument("-w", "--webtoon", action="store_true", dest="webtoon", default=False,',
          '''    main_options.add_argument('--virtual-panels', choices=('off', 'horizontal', 'vertical'), default=None,
@@ -313,6 +327,14 @@ def inject_kfx(root):
         lines = text.splitlines(keepends=True)
         done = False
         for i, ln in enumerate(lines):
+            if mode == 'replace_block' and anchor[0] in ln:
+                end = next((j for j in range(i + 1, len(lines)) if anchor[1] in lines[j]), None)
+                if end is None:
+                    continue
+                eol = '\r\n' if ln.endswith('\r\n') else '\n'
+                lines[i:end + 1] = [hook.replace('\n', eol)]
+                done = True
+                break
             if mode == 'replace_line' and anchor in ln:
                 eol = '\r\n' if ln.endswith('\r\n') else '\n'
                 indent = ln[:len(ln) - len(ln.lstrip())]

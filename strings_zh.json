@@ -1,5 +1,5 @@
 {
-  "kcc_version": "13.0.1",
+  "kcc_version": "13.0.4",
   "strings": {
     "kindlecomicconverter/KCC_ui.py": {
       "<html><head/><body><p>After calculating the cropping boundaries, &quot;back up&quot; a specified percentage amount.</p></body></html>": "<html><head/><body><p>计算出裁剪边界后，按指定百分比向外&quot;回退&quot;多保留一部分。</p></body></html>",
@@ -51,7 +51,7 @@
       "Rotate First": "首先旋转",
       "For one item/fusion, sets the default title and filename.\n": "单个来源或文件合并时，设置默认标题和输出文件名。\n",
       "For multiple files, will enumerate the titles and filenames, e.g. Series 01, Series 02, etc.": "处理多个文件时，会依次为标题和文件名编号，例如：系列 01、系列 02 等。",
-      "Default Title/Series": "默认标题/系列",
+      "Title/Filename/Series": "标题/文件名/系列",
       "PDF Width Render": "PDF 宽度渲染",
       "Erase rainbow effect on color eink screen by attenuating interfering frequencies": "通过衰减干扰频率，消除彩色墨水屏上的彩虹纹。",
       "Rainbow eraser": "彩虹纹消除",

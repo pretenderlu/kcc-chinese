@@ -18,7 +18,7 @@ from . import __version__
 
 API_URL = 'https://api.github.com/repos/pretenderlu/kcc-chinese/releases/latest'
 RELEASE_PREFIX = 'https://github.com/pretenderlu/kcc-chinese/releases/tag/'
-CURRENT_FIX = 1  # 发布 vX.Y.Z-zh-enhanced-fixN 时同步改为 N
+CURRENT_FIX = 0  # 发布 vX.Y.Z-zh-enhanced-fixN 时同步改为 N
 _TAG_RE = re.compile(r'^v?(\d+\.\d+\.\d+)-zh-enhanced(?:-fix(\d+))?$')
 
 
